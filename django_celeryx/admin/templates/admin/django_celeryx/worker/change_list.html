@@ -2,15 +2,28 @@
 {% load i18n %}
 
 {% block result_list %}
-  <fieldset class="module" style="margin-bottom: 15px; padding: 10px 15px;">
-    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-      <span><strong>{% translate 'Active' %}:</strong> <code>{{ total_active }}</code></span>
-      <span><strong>{% translate 'Processed' %}:</strong> <code>{{ total_processed }}</code></span>
-      <span><strong>{% translate 'Succeeded' %}:</strong> <code>{{ total_succeeded }}</code></span>
-      <span><strong>{% translate 'Failed' %}:</strong> <code>{{ total_failed }}</code></span>
-      <span><strong>{% translate 'Retried' %}:</strong> <code>{{ total_retried }}</code></span>
-    </div>
-  </fieldset>
+  <div class="results" style="margin-bottom: 10px;">
+    <table style="width: 100%;">
+      <thead>
+        <tr>
+          <th scope="col" style="text-align: center;">{% translate 'Active' %}</th>
+          <th scope="col" style="text-align: center;">{% translate 'Processed' %}</th>
+          <th scope="col" style="text-align: center;">{% translate 'Succeeded' %}</th>
+          <th scope="col" style="text-align: center;">{% translate 'Failed' %}</th>
+          <th scope="col" style="text-align: center;">{% translate 'Retried' %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row1">
+          <td style="text-align: center;"><code>{{ total_active }}</code></td>
+          <td style="text-align: center;"><code>{{ total_processed }}</code></td>
+          <td style="text-align: center;"><code>{{ total_succeeded }}</code></td>
+          <td style="text-align: center;"><code>{{ total_failed }}</code></td>
+          <td style="text-align: center;"><code>{{ total_retried }}</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
   {{ block.super }}
 {% endblock %}

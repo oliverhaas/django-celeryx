@@ -31,9 +31,11 @@ case "${1:-}" in
         ;;
 
     worker)
-        echo "Starting Celery worker with events..."
+        echo "Starting 2 Celery workers with events..."
         echo ""
-        source "$VENV" && celery -A example worker -l info -E
+        source "$VENV" && celery -A example worker -l info -E --concurrency=2 -n worker1@%h &
+        source "$VENV" && celery -A example worker -l info -E --concurrency=1 -n worker2@%h &
+        wait
         ;;
 
     send-tasks)
