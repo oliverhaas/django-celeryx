@@ -1,0 +1,178 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static "admin/css/forms.css" %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-django_celeryx model-task change-form{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='django_celeryx' %}">django-celeryx</a>
+    &rsaquo; <a href="{% url 'admin:django_celeryx_task_changelist' %}">{% translate 'Tasks' %}</a>
+    &rsaquo; {{ task.name|default:task_id|truncatechars:40 }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <ul class="object-tools">
+        <li><a href="{% url 'admin:django_celeryx_task_changelist' %}">{% translate "All Tasks" %}</a></li>
+    </ul>
+
+    {% if task %}
+
+    <fieldset class="module aligned">
+        <h2>{% translate 'Task' %}</h2>
+        <div class="form-row">
+            <div><label>{% translate 'UUID' %}:</label> <code>{{ task.uuid }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Name' %}:</label> {{ task.name|default:"-" }}</div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'State' %}:</label> {{ state_badge }}</div>
+        </div>
+        <div class="form-row">
+            <div>
+                <label>{% translate 'Worker' %}:</label>
+                {% if task.worker %}
+                    <a href="{% url 'admin:django_celeryx_worker_change' task.worker %}">{{ task.worker }}</a>
+                {% else %}-{% endif %}
+            </div>
+        </div>
+    </fieldset>
+
+    {% if task.args or task.kwargs %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Arguments' %}</h2>
+        {% if task.args %}
+        <div class="form-row">
+            <div><label>{% translate 'args' %}:</label> <code>{{ task.args }}</code></div>
+        </div>
+        {% endif %}
+        {% if task.kwargs %}
+        <div class="form-row">
+            <div><label>{% translate 'kwargs' %}:</label> <code>{{ task.kwargs }}</code></div>
+        </div>
+        {% endif %}
+    </fieldset>
+    {% endif %}
+
+    <fieldset class="module aligned">
+        <h2>{% translate 'Timing' %}</h2>
+        {% if received_fmt %}
+        <div class="form-row">
+            <div><label>{% translate 'Received' %}:</label> <code>{{ received_fmt }}</code></div>
+        </div>
+        {% endif %}
+        {% if started_fmt %}
+        <div class="form-row">
+            <div><label>{% translate 'Started' %}:</label> <code>{{ started_fmt }}</code></div>
+        </div>
+        {% endif %}
+        {% if succeeded_fmt %}
+        <div class="form-row">
+            <div><label>{% translate 'Succeeded' %}:</label> <code>{{ succeeded_fmt }}</code></div>
+        </div>
+        {% endif %}
+        {% if failed_fmt %}
+        <div class="form-row">
+            <div><label>{% translate 'Failed' %}:</label> <code>{{ failed_fmt }}</code></div>
+        </div>
+        {% endif %}
+        {% if task.runtime is not None %}
+        <div class="form-row">
+            <div><label>{% translate 'Runtime' %}:</label> <code>{{ task.runtime }}s</code></div>
+        </div>
+        {% endif %}
+        {% if task.eta %}
+        <div class="form-row">
+            <div><label>{% translate 'ETA' %}:</label> <code>{{ task.eta }}</code></div>
+        </div>
+        {% endif %}
+        {% if task.expires %}
+        <div class="form-row">
+            <div><label>{% translate 'Expires' %}:</label> <code>{{ task.expires }}</code></div>
+        </div>
+        {% endif %}
+    </fieldset>
+
+    {% if task.result or task.exception %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Result' %}</h2>
+        {% if task.result %}
+        <div class="form-row">
+            <div><label>{% translate 'Result' %}:</label> <code>{{ task.result }}</code></div>
+        </div>
+        {% endif %}
+        {% if task.exception %}
+        <div class="form-row">
+            <div><label>{% translate 'Exception' %}:</label> <code style="color:#dc2626;">{{ task.exception }}</code></div>
+        </div>
+        {% endif %}
+        {% if task.traceback %}
+        <div class="form-row">
+            <div>
+                <label>{% translate 'Traceback' %}:</label>
+                <pre style="background:#f8f8f8; padding:10px; overflow-x:auto; font-size:12px; border:1px solid #ddd;">{{ task.traceback }}</pre>
+            </div>
+        </div>
+        {% endif %}
+    </fieldset>
+    {% endif %}
+
+    {% if task.exchange or task.routing_key or task.retries %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Routing' %}</h2>
+        {% if task.exchange %}
+        <div class="form-row">
+            <div><label>{% translate 'Exchange' %}:</label> <code>{{ task.exchange }}</code></div>
+        </div>
+        {% endif %}
+        {% if task.routing_key %}
+        <div class="form-row">
+            <div><label>{% translate 'Routing Key' %}:</label> <code>{{ task.routing_key }}</code></div>
+        </div>
+        {% endif %}
+        {% if task.retries %}
+        <div class="form-row">
+            <div><label>{% translate 'Retries' %}:</label> {{ task.retries }}</div>
+        </div>
+        {% endif %}
+    </fieldset>
+    {% endif %}
+
+    {% if task.parent_id or task.root_id %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Related Tasks' %}</h2>
+        {% if task.root_id %}
+        <div class="form-row">
+            <div><label>{% translate 'Root' %}:</label> <a href="{% url 'admin:django_celeryx_task_change' task.root_id %}"><code>{{ task.root_id }}</code></a></div>
+        </div>
+        {% endif %}
+        {% if task.parent_id %}
+        <div class="form-row">
+            <div><label>{% translate 'Parent' %}:</label> <a href="{% url 'admin:django_celeryx_task_change' task.parent_id %}"><code>{{ task.parent_id }}</code></a></div>
+        </div>
+        {% endif %}
+    </fieldset>
+    {% endif %}
+
+    {% else %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Task Not Found' %}</h2>
+        <div class="form-row">
+            <p>{% translate 'No data available for task' %} <code>{{ task_id }}</code>.</p>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    <div class="submit-row">
+        <a role="button" href="{% url 'admin:django_celeryx_task_changelist' %}" class="closelink">{% translate 'Back' %}</a>
+    </div>
+</div>
+{% endblock %}

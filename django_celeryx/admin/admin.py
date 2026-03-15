@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
+from django.urls import path
 
 from .models import Queue, Task, Worker
 from .queryset import QueueAdminMixin, TaskAdminMixin, WorkerAdminMixin
@@ -56,11 +58,7 @@ class LiveUpdateMixin:
 
 @admin.register(Task)
 class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[misc]
-    """Admin for Celery tasks.
-
-    Uses TaskAdminMixin for list_display, filtering, search.
-    Driven by TaskQuerySet (in-memory, backed by TaskStore).
-    """
+    """Admin for Celery tasks."""
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -68,14 +66,35 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
     def has_delete_permission(self, request: HttpRequest, obj: Task | None = None) -> bool:
         return False
 
+    def get_urls(self) -> list:
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "<path:object_id>/change/",
+                self.admin_site.admin_view(self.change_view),
+                name="django_celeryx_task_change",
+            ),
+        ]
+        return custom_urls + urls
+
+    def change_view(
+        self,
+        request: HttpRequest,
+        object_id: str,
+        form_url: str = "",
+        extra_context: dict[str, Any] | None = None,
+    ) -> HttpResponse:
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+
+        from .views.task_detail import task_detail_view
+
+        return task_detail_view(request, object_id)
+
 
 @admin.register(Worker)
 class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, _WorkerBase):  # type: ignore[misc]
-    """Admin for Celery workers.
-
-    Uses WorkerAdminMixin for list_display, filtering, search.
-    Driven by WorkerQuerySet (in-memory, backed by WorkerStore).
-    """
+    """Admin for Celery workers."""
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -83,14 +102,35 @@ class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, _WorkerBase):  # type: igno
     def has_delete_permission(self, request: HttpRequest, obj: Worker | None = None) -> bool:
         return False
 
+    def get_urls(self) -> list:
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "<path:object_id>/change/",
+                self.admin_site.admin_view(self.change_view),
+                name="django_celeryx_worker_change",
+            ),
+        ]
+        return custom_urls + urls
+
+    def change_view(
+        self,
+        request: HttpRequest,
+        object_id: str,
+        form_url: str = "",
+        extra_context: dict[str, Any] | None = None,
+    ) -> HttpResponse:
+        if not self.has_view_or_change_permission(request):
+            raise PermissionDenied
+
+        from .views.worker_detail import worker_detail_view
+
+        return worker_detail_view(request, object_id)
+
 
 @admin.register(Queue)
 class QueueAdmin(LiveUpdateMixin, QueueAdminMixin, _QueueBase):  # type: ignore[misc]
-    """Admin for Celery queues.
-
-    Uses QueueAdminMixin for list_display, filtering, search.
-    Driven by QueueQuerySet (in-memory, backed by broker stats).
-    """
+    """Admin for Celery queues."""
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False

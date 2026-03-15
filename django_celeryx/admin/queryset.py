@@ -212,10 +212,24 @@ class TaskAdminMixin:
 
 
 def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
-    """Enrich worker list with data from celery.control.inspect()."""
+    """Enrich worker list with data from inspect() and task store counts."""
     if not workers:
         return
 
+    # Count succeeded/failed/retried per worker from the task store
+    by_hostname = {w.hostname: w for w in workers}
+    for task_info in task_store.all():
+        worker_obj = by_hostname.get(task_info.worker) if task_info.worker else None
+        if worker_obj is None:
+            continue
+        if task_info.state == "SUCCESS":
+            worker_obj.succeeded = (worker_obj.succeeded or 0) + 1
+        elif task_info.state == "FAILURE":
+            worker_obj.failed = (worker_obj.failed or 0) + 1
+        elif task_info.state == "RETRY":
+            worker_obj.retried = (worker_obj.retried or 0) + 1
+
+    # Enrich with inspect() data (pool, uptime, etc.)
     try:
         from django_celeryx.settings import celeryx_settings
 
@@ -233,8 +247,6 @@ def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
         inspector = celery_app.control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
         stats = inspector.stats() or {}
 
-        by_hostname = {w.hostname: w for w in workers}
-
         for hostname, data in stats.items():
             worker = by_hostname.get(hostname)
             if not worker:
@@ -247,17 +259,15 @@ def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
                 worker.pool = impl.rsplit(":", 1)[-1] if ":" in impl else impl
             worker.concurrency = pool_info.get("max-concurrency")
 
-            # Processed count
+            # Processed count (total from all task types)
             total = data.get("total", {})
             if total:
                 worker.processed = sum(total.values())
 
-            # Other fields
             worker.pid = data.get("pid")
             worker.uptime = data.get("uptime")
             worker.prefetch_count = data.get("prefetch_count")
 
-            # Update the store too
             worker_store.update(
                 hostname,
                 pool=worker.pool,
@@ -353,7 +363,7 @@ class WorkerAdminMixin:
     """Shared worker list admin behaviour for default and unfold themes.
 
     Columns match Flower's worker list: hostname, status, active, processed,
-    pool type, concurrency, load average, and uptime.
+    succeeded, failed, retried, load average.
     """
 
     list_display: ClassVar[Any] = [
@@ -361,10 +371,10 @@ class WorkerAdminMixin:
         "status_display",
         "active_display",
         "processed_display",
-        "pool_display",
-        "concurrency_display",
+        "succeeded_display",
+        "failed_display",
+        "retried_display",
         "loadavg_display",
-        "uptime_display",
     ]
     list_display_links: ClassVar[Any] = ["hostname"]
     list_filter: ClassVar[Any] = [WorkerStatusFilter]
@@ -415,41 +425,22 @@ class WorkerAdminMixin:
             return format_html("<code>{}</code>", obj.processed)
         return "-"
 
-    @admin.display(description=_("Pool"))
-    def pool_display(self, obj: Worker) -> str:
-        if obj.pool:
-            return format_html("<code>{}</code>", obj.pool)
-        return "-"
+    @admin.display(description=_("Succeeded"))
+    def succeeded_display(self, obj: Worker) -> str:
+        return format_html("<code>{}</code>", obj.succeeded or 0)
 
-    @admin.display(description=_("Concurrency"))
-    def concurrency_display(self, obj: Worker) -> str:
-        if obj.concurrency is not None:
-            return format_html("<code>{}</code>", obj.concurrency)
-        return "-"
+    @admin.display(description=_("Failed"))
+    def failed_display(self, obj: Worker) -> str:
+        return format_html("<code>{}</code>", obj.failed or 0)
+
+    @admin.display(description=_("Retried"))
+    def retried_display(self, obj: Worker) -> str:
+        return format_html("<code>{}</code>", obj.retried or 0)
 
     @admin.display(description=_("Load Average"))
     def loadavg_display(self, obj: Worker) -> str:
         if obj.loadavg:
             return format_html("<code>{}</code>", obj.loadavg)
-        return "-"
-
-    @admin.display(description=_("Uptime"))
-    def uptime_display(self, obj: Worker) -> str:
-        if obj.uptime is not None:
-            # Format uptime as human-readable duration
-            seconds = int(obj.uptime)
-            if seconds < 60:
-                return format_html("<code>{}s</code>", seconds)
-            minutes = seconds // 60
-            if minutes < 60:
-                return format_html("<code>{}m</code>", minutes)
-            hours = minutes // 60
-            remaining_minutes = minutes % 60
-            if hours < 24:
-                return format_html("<code>{}h {}m</code>", hours, remaining_minutes)
-            days = hours // 24
-            remaining_hours = hours % 24
-            return format_html("<code>{}d {}h</code>", days, remaining_hours)
         return "-"
 
 

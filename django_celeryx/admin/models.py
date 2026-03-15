@@ -81,6 +81,9 @@ class Worker(models.Model):
     status = models.CharField(max_length=50, blank=True, default="online")
     active = models.IntegerField(default=0)
     processed = models.IntegerField(null=True, blank=True)
+    succeeded = models.IntegerField(null=True, blank=True)
+    failed = models.IntegerField(null=True, blank=True)
+    retried = models.IntegerField(null=True, blank=True)
     pool = models.CharField(max_length=50, blank=True, default="")
     concurrency = models.IntegerField(null=True, blank=True)
     loadavg = models.CharField(max_length=100, blank=True, default="")
@@ -111,6 +114,9 @@ class Worker(models.Model):
         worker.status = worker_info.status
         worker.active = worker_info.active
         worker.processed = worker_info.processed
+        worker.succeeded = worker_info.succeeded
+        worker.failed = worker_info.failed
+        worker.retried = worker_info.retried
         worker.pool = worker_info.pool or ""
         worker.concurrency = worker_info.concurrency
         worker.sw_ident = worker_info.sw_ident or ""

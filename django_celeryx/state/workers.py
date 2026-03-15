@@ -27,6 +27,9 @@ class WorkerInfo:
 
     # Fields populated via inspect() on demand
     processed: int | None = None
+    succeeded: int | None = None
+    failed: int | None = None
+    retried: int | None = None
     pool: str | None = None
     concurrency: int | None = None
     pid: int | None = None

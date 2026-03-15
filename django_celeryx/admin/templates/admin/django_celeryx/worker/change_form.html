@@ -1,0 +1,347 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static "admin/css/forms.css" %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-django_celeryx model-worker change-form{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='django_celeryx' %}">django-celeryx</a>
+    &rsaquo; <a href="{% url 'admin:django_celeryx_worker_changelist' %}">{% translate 'Workers' %}</a>
+    &rsaquo; {{ hostname|truncatechars:40 }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    {# Tab navigation using object-tools links #}
+    <ul class="object-tools">
+        {% for tab in tabs %}
+        <li>
+            <a href="?tab={{ tab }}"{% if current_tab == tab %} style="font-weight:bold; text-decoration:underline;"{% endif %}>
+                {{ tab|capfirst }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if not worker %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Worker Not Found' %}</h2>
+        <div class="form-row">
+            <p>{% translate 'No data available for worker' %} <code>{{ hostname }}</code>.</p>
+        </div>
+    </fieldset>
+
+    {% elif current_tab == "pool" %}
+    {# ===== POOL TAB ===== #}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Pool' %}</h2>
+        <div class="form-row">
+            <div><label>{% translate 'Type' %}:</label> <code>{{ pool_type|default:"-" }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Concurrency' %}:</label> <code>{{ pool_concurrency|default:"-" }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Max Tasks Per Child' %}:</label> <code>{{ pool_max_tasks_per_child|default:"-" }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Prefetch Count' %}:</label> <code>{{ prefetch_count|default:"-" }}</code></div>
+        </div>
+        {% if pool_processes %}
+        <div class="form-row">
+            <div>
+                <label>{% translate 'Processes' %}:</label>
+                <code>{% for pid in pool_processes %}{{ pid }}{% if not forloop.last %}, {% endif %}{% endfor %}</code>
+            </div>
+        </div>
+        {% endif %}
+        {% if pool_timeouts %}
+        <div class="form-row">
+            <div><label>{% translate 'Timeouts' %}:</label> <code>{{ pool_timeouts }}</code></div>
+        </div>
+        {% endif %}
+    </fieldset>
+
+    {% elif current_tab == "queues" %}
+    {# ===== QUEUES TAB ===== #}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Active Queues' %}</h2>
+        {% if queues %}
+        <div class="results">
+            <table id="result_list" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Queue' %}</th>
+                        <th scope="col">{% translate 'Exchange' %}</th>
+                        <th scope="col">{% translate 'Routing Key' %}</th>
+                        <th scope="col">{% translate 'Durable' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q in queues %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td><code>{{ q.name }}</code></td>
+                        <td><code>{{ q.exchange.name|default:"-" }}</code></td>
+                        <td><code>{{ q.routing_key|default:"-" }}</code></td>
+                        <td>{{ q.durable|yesno:"Yes,No" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="form-row"><p>{% translate 'No active queues.' %}</p></div>
+        {% endif %}
+    </fieldset>
+
+    {% elif current_tab == "tasks" %}
+    {# ===== TASKS TAB ===== #}
+    {% if total_processed %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Processed' %}</h2>
+        <div class="results">
+            <table id="result_list" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Task Name' %}</th>
+                        <th scope="col">{% translate 'Count' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for name, count in total_processed.items %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td>{{ name }}</td>
+                        <td><code>{{ count }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% if active_tasks %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Active' %} ({{ active_tasks|length }})</h2>
+        <div class="results">
+            <table style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Task' %}</th>
+                        <th scope="col">{% translate 'ID' %}</th>
+                        <th scope="col">{% translate 'Args' %}</th>
+                        <th scope="col">{% translate 'Worker PID' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in active_tasks %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td>{{ t.name|default:"-" }}</td>
+                        <td><a href="{% url 'admin:django_celeryx_task_change' t.id %}"><code>{{ t.id|truncatechars:12 }}</code></a></td>
+                        <td><code>{{ t.args|default:"-" }}</code></td>
+                        <td><code>{{ t.worker_pid|default:"-" }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% if reserved_tasks %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Reserved' %} ({{ reserved_tasks|length }})</h2>
+        <div class="results">
+            <table style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Task' %}</th>
+                        <th scope="col">{% translate 'ID' %}</th>
+                        <th scope="col">{% translate 'Args' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in reserved_tasks %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td>{{ t.name|default:"-" }}</td>
+                        <td><a href="{% url 'admin:django_celeryx_task_change' t.id %}"><code>{{ t.id|truncatechars:12 }}</code></a></td>
+                        <td><code>{{ t.args|default:"-" }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% if scheduled_tasks %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Scheduled' %} ({{ scheduled_tasks|length }})</h2>
+        <div class="results">
+            <table style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Task' %}</th>
+                        <th scope="col">{% translate 'ID' %}</th>
+                        <th scope="col">{% translate 'ETA' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in scheduled_tasks %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td>{{ t.request.name|default:"-" }}</td>
+                        <td><code>{{ t.request.id|default:"-"|truncatechars:12 }}</code></td>
+                        <td><code>{{ t.eta|default:"-" }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% if revoked_tasks %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Revoked' %} ({{ revoked_tasks|length }})</h2>
+        <div class="form-row">
+            <div>
+                {% for task_id in revoked_tasks %}
+                <code>{{ task_id }}</code>{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% if not total_processed and not active_tasks and not reserved_tasks and not scheduled_tasks and not revoked_tasks %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Tasks' %}</h2>
+        <div class="form-row"><p>{% translate 'No task data available.' %}</p></div>
+    </fieldset>
+    {% endif %}
+
+    {% elif current_tab == "limits" %}
+    {# ===== LIMITS TAB ===== #}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Rate Limits & Timeouts' %}</h2>
+        {% if registered_tasks %}
+        <div class="results">
+            <table style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Task Name' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for name in registered_tasks %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td>{{ name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="form-row"><p>{% translate 'No registered tasks.' %}</p></div>
+        {% endif %}
+    </fieldset>
+
+    {% elif current_tab == "config" %}
+    {# ===== CONFIG TAB ===== #}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Configuration' %} ({{ conf_items|length }} {% translate 'settings' %})</h2>
+        {% if conf_items %}
+        <div class="results">
+            <table id="result_list" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Setting' %}</th>
+                        <th scope="col">{% translate 'Value' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key, value in conf_items %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td><code>{{ key }}</code></td>
+                        <td><code>{{ value }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="form-row"><p>{% translate 'Configuration not available.' %}</p></div>
+        {% endif %}
+    </fieldset>
+
+    {% elif current_tab == "stats" %}
+    {# ===== STATS TAB ===== #}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Worker' %}</h2>
+        <div class="form-row">
+            <div><label>{% translate 'PID' %}:</label> <code>{{ pid|default:"-" }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Uptime' %}:</label> <code>{{ uptime|default:"-" }}{% if uptime %}s{% endif %}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Clock' %}:</label> <code>{{ clock|default:"-" }}</code></div>
+        </div>
+    </fieldset>
+
+    {% if rusage %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Resource Usage' %}</h2>
+        <div class="results">
+            <table id="result_list" style="width:100%;">
+                <thead>
+                    <tr>
+                        <th scope="col">{% translate 'Metric' %}</th>
+                        <th scope="col">{% translate 'Value' %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key, value in rusage.items %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td><code>{{ key }}</code></td>
+                        <td><code>{{ value }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% if broker_info %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Broker' %}</h2>
+        <div class="form-row">
+            <div><label>{% translate 'Transport' %}:</label> <code>{{ broker_info.transport|default:"-" }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Hostname' %}:</label> <code>{{ broker_info.hostname|default:"-" }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Port' %}:</label> <code>{{ broker_info.port|default:"-" }}</code></div>
+        </div>
+        <div class="form-row">
+            <div><label>{% translate 'Virtual Host' %}:</label> <code>{{ broker_info.virtual_host|default:"-" }}</code></div>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% endif %}
+
+    <div class="submit-row">
+        <a role="button" href="{% url 'admin:django_celeryx_worker_changelist' %}" class="closelink">{% translate 'Back' %}</a>
+    </div>
+</div>
+{% endblock %}
