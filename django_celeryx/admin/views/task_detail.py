@@ -10,7 +10,6 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.utils.html import format_html
 
-from django_celeryx.state.tasks import task_store
 from django_celeryx.types import TASK_STATE_COLORS
 
 if TYPE_CHECKING:
@@ -64,7 +63,10 @@ def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
     if response is not None:
         return response
 
-    task = task_store.get(task_id)
+    from django_celeryx.db_models import TaskEvent
+    from django_celeryx.settings import get_db_alias
+
+    task = TaskEvent.objects.using(get_db_alias()).filter(uuid=task_id).first()
 
     can_revoke = task is not None and task.state in ("PENDING", "RECEIVED", "STARTED")
 
@@ -81,7 +83,7 @@ def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
         "started_fmt": _format_ts(task.started) if task else None,
         "succeeded_fmt": _format_ts(getattr(task, "succeeded", None)) if task else None,
         "failed_fmt": _format_ts(getattr(task, "failed", None)) if task else None,
-        "retried_fmt": _format_ts(getattr(task, "retried", None)) if task else None,
+        "retried_fmt": _format_ts(getattr(task, "retried_at", None)) if task else None,
         "revoked_fmt": _format_ts(getattr(task, "revoked", None)) if task else None,
     })
     return render(request, "admin/django_celeryx/task/change_form.html", context)

@@ -1,8 +1,7 @@
 """Database persistence for event data.
 
-Handles writing events to DB alongside in-memory stores,
-replaying from DB on startup, and periodic cleanup.
-Only active when CELERYX["DATABASE"] is configured.
+The database is the single source of truth for all task and worker data.
+Event handlers write here, admin views read from here.
 """
 
 from __future__ import annotations
@@ -13,24 +12,14 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def is_persistence_enabled() -> bool:
-    """Check if database persistence is configured."""
-    from django_celeryx.settings import celeryx_settings
+def _get_db() -> str:
+    from django_celeryx.settings import get_db_alias
 
-    return celeryx_settings.DATABASE is not None
-
-
-def _get_db() -> str | None:
-    from django_celeryx.settings import celeryx_settings
-
-    return celeryx_settings.DATABASE
+    return get_db_alias()
 
 
 def persist_task_event(uuid: str, **fields: object) -> None:
     """Write a task event to the database (upsert by uuid)."""
-    if not is_persistence_enabled():
-        return
-
     try:
         from django_celeryx.db_models import TaskEvent
 
@@ -53,9 +42,6 @@ def persist_task_event(uuid: str, **fields: object) -> None:
 
 def persist_worker_event(hostname: str, **fields: object) -> None:
     """Write a worker event to the database (upsert by hostname)."""
-    if not is_persistence_enabled():
-        return
-
     try:
         from django_celeryx.db_models import WorkerEvent
 
@@ -76,60 +62,8 @@ def persist_worker_event(hostname: str, **fields: object) -> None:
         logger.debug("Failed to persist worker event %s", hostname, exc_info=True)
 
 
-def replay_from_db() -> int:
-    """Replay persisted events into in-memory stores on startup.
-
-    Returns the number of tasks replayed.
-    """
-    if not is_persistence_enabled():
-        return 0
-
-    try:
-        from django_celeryx.db_models import TaskEvent, WorkerEvent
-        from django_celeryx.settings import celeryx_settings
-        from django_celeryx.state.tasks import task_store
-        from django_celeryx.state.workers import worker_store
-
-        db = _get_db()
-        task_count = 0
-
-        # Replay tasks (most recent first, up to MAX_TASKS)
-        for te in TaskEvent.objects.using(db).order_by("-updated_at")[: celeryx_settings.MAX_TASKS]:
-            fields = {}
-            for field_name in ("name", "state", "worker", "args", "kwargs", "result",
-                               "exception", "traceback", "runtime", "eta", "expires",
-                               "exchange", "routing_key", "retries", "parent_id", "root_id",
-                               "received", "started", "succeeded", "failed", "retried_at", "revoked"):
-                val = getattr(te, field_name, None)
-                if val is not None and val not in ("", 0):
-                    # Map retried_at back to retried for TaskInfo
-                    key = "retried" if field_name == "retried_at" else field_name
-                    fields[key] = val
-            task_store.update(te.uuid, **fields)
-            task_count += 1
-
-        # Replay workers
-        for we in WorkerEvent.objects.using(db).all():
-            fields = {}
-            for field_name in ("status", "active", "freq", "loadavg", "sw_ident",
-                               "sw_ver", "sw_sys", "last_heartbeat"):
-                val = getattr(we, field_name, None)
-                if val is not None and val != "":
-                    fields[field_name] = val
-            worker_store.update(we.hostname, **fields)
-
-        logger.info("Replayed %d tasks from database", task_count)
-        return task_count
-    except Exception:
-        logger.debug("Failed to replay from database", exc_info=True)
-        return 0
-
-
 def cleanup_old_events() -> int:
     """Delete events older than MAX_EVENT_AGE. Returns count deleted."""
-    if not is_persistence_enabled():
-        return 0
-
     try:
         from django_celeryx.db_models import TaskEvent
         from django_celeryx.settings import celeryx_settings
@@ -143,3 +77,14 @@ def cleanup_old_events() -> int:
     except Exception:
         logger.debug("Failed to clean up old events", exc_info=True)
         return 0
+
+
+def ensure_tables() -> None:
+    """Ensure celeryx database tables exist (run migrations programmatically)."""
+    try:
+        from django.core.management import call_command
+
+        db = _get_db()
+        call_command("migrate", "django_celeryx", database=db, verbosity=0)
+    except Exception:
+        logger.debug("Failed to run celeryx migrations", exc_info=True)

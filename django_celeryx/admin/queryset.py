@@ -1,7 +1,7 @@
 """QuerySet-like objects and admin mixins for task, worker, and queue list views.
 
-Provides fake queryset objects that satisfy Django's ChangeList and Paginator
-interfaces, backed by in-memory state. Same pattern as django-cachex.
+All data reads come from the database (TaskEvent, WorkerEvent models).
+The database is the single source of truth — there is no separate in-memory store.
 """
 
 from __future__ import annotations
@@ -16,8 +16,6 @@ from django.utils.translation import gettext_lazy as _
 
 from django_celeryx.admin.helpers import get_celery_app
 from django_celeryx.admin.models import Queue, RegisteredTask, Task, Worker
-from django_celeryx.state.tasks import task_store
-from django_celeryx.state.workers import worker_store
 from django_celeryx.types import TASK_STATE_COLORS, WORKER_STATUS_COLORS, TaskState, WorkerStatus
 
 logger = logging.getLogger(__name__)
@@ -26,6 +24,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from django.http import HttpRequest
+
+
+def _get_db() -> str:
+    from django_celeryx.settings import get_db_alias
+
+    return get_db_alias()
 
 
 class _FakeQuery:
@@ -40,8 +44,41 @@ class _FakeQuery:
 # ======================================================================
 
 
+def _tasks_from_db() -> list[Task]:
+    """Load tasks from the database."""
+    try:
+        from django_celeryx.db_models import TaskEvent
+
+        db = _get_db()
+        tasks = []
+        for te in TaskEvent.objects.using(db).order_by("-updated_at")[:1000]:
+            task = Task()
+            task.uuid = te.uuid
+            task.name = te.name
+            task.state = te.state
+            task.worker = te.worker
+            task.args = te.args
+            task.kwargs = te.kwargs
+            task.result = te.result
+            task.exception = te.exception
+            task.traceback = te.traceback
+            task.received = te.received
+            task.started = te.started
+            task.runtime = te.runtime
+            task.eta = te.eta
+            task.expires = te.expires
+            task.exchange = te.exchange
+            task.routing_key = te.routing_key
+            task.retries = te.retries
+            tasks.append(task)
+        return tasks
+    except Exception:
+        logger.debug("Failed to load tasks from DB", exc_info=True)
+        return []
+
+
 class TaskQuerySet:
-    """In-memory queryset-like object backed by TaskStore."""
+    """QuerySet-like object backed by TaskEvent database table."""
 
     model = Task
     ordered = True
@@ -49,7 +86,7 @@ class TaskQuerySet:
 
     def __init__(self, data: list[Task] | None = None) -> None:
         if data is None:
-            self._data = [Task.from_task_info(t) for t in reversed(task_store.all())]
+            self._data = _tasks_from_db()
         else:
             self._data = list(data)
         self.query = _FakeQuery()
@@ -102,8 +139,6 @@ class TaskQuerySet:
 
 
 class TaskStateFilter(admin.SimpleListFilter):
-    """Filter tasks by state."""
-
     title = _("state")
     parameter_name = "state"
 
@@ -118,8 +153,6 @@ class TaskStateFilter(admin.SimpleListFilter):
 
 
 class TaskNameFilter(admin.SimpleListFilter):
-    """Filter tasks by task name (registered task type)."""
-
     title = _("task name")
     parameter_name = "task_name"
 
@@ -139,14 +172,18 @@ class TaskNameFilter(admin.SimpleListFilter):
 
 
 class TaskWorkerFilter(admin.SimpleListFilter):
-    """Filter tasks by worker."""
-
     title = _("worker")
     parameter_name = "task_worker"
 
     def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
-        hostnames = sorted({w.hostname for w in worker_store.all()})
-        return [(h, h) for h in hostnames]
+        try:
+            from django_celeryx.db_models import WorkerEvent
+
+            db = _get_db()
+            hostnames = sorted(WorkerEvent.objects.using(db).values_list("hostname", flat=True))
+            return [(h, h) for h in hostnames]
+        except Exception:
+            return []
 
     def queryset(self, request: HttpRequest, queryset: TaskQuerySet) -> TaskQuerySet:  # type: ignore[override]
         value = self.value()
@@ -155,38 +192,17 @@ class TaskWorkerFilter(admin.SimpleListFilter):
         return queryset
 
 
-# Map TASK_COLUMNS config names to display method names or raw field names
 _TASK_COLUMN_MAP: dict[str, str] = {
-    "name": "name",
-    "uuid": "uuid_short",
-    "state": "state_display",
-    "worker": "worker",
-    "received": "received_display",
-    "started": "started_display",
-    "runtime": "runtime_display",
-    "args": "args",
-    "kwargs": "kwargs",
-    "result": "result",
-    "exchange": "exchange",
-    "routing_key": "routing_key",
-    "retries": "retries",
-    "exception": "exception",
-    "eta": "eta",
-    "expires": "expires",
+    "name": "name", "uuid": "uuid_short", "state": "state_display",
+    "worker": "worker", "received": "received_display", "started": "started_display",
+    "runtime": "runtime_display", "args": "args", "kwargs": "kwargs",
+    "result": "result", "exchange": "exchange", "routing_key": "routing_key",
+    "retries": "retries", "exception": "exception", "eta": "eta", "expires": "expires",
 }
 
 
 class TaskAdminMixin:
-    """Shared task list admin behaviour for default and unfold themes."""
-
-    list_display: ClassVar[Any] = [
-        "name",
-        "uuid_short",
-        "state_display",
-        "worker",
-        "received_display",
-        "runtime_display",
-    ]
+    list_display: ClassVar[Any] = ["name", "uuid_short", "state_display", "worker", "received_display", "runtime_display"]
     list_display_links: ClassVar[Any] = ["name"]
     list_filter: ClassVar[Any] = [TaskStateFilter, TaskNameFilter, TaskWorkerFilter]
     search_fields: ClassVar[Any] = ["name", "uuid"]
@@ -194,38 +210,23 @@ class TaskAdminMixin:
     list_per_page: ClassVar[int] = 50
 
     def get_list_display(self, request: HttpRequest) -> list[str]:
-        """Build list_display from TASK_COLUMNS setting."""
         from django_celeryx.settings import celeryx_settings
 
-        columns = []
-        for col in celeryx_settings.TASK_COLUMNS:
-            display_name = _TASK_COLUMN_MAP.get(col)
-            if display_name:
-                columns.append(display_name)
+        columns = [_TASK_COLUMN_MAP[c] for c in celeryx_settings.TASK_COLUMNS if c in _TASK_COLUMN_MAP]
         return columns or list(self.list_display)
 
     def get_queryset(self, request: HttpRequest) -> TaskQuerySet:
         return TaskQuerySet()
 
-    def get_search_results(
-        self,
-        request: HttpRequest,
-        queryset: TaskQuerySet,
-        search_term: str,
-    ) -> tuple[TaskQuerySet, bool]:
+    def get_search_results(self, request: HttpRequest, queryset: TaskQuerySet, search_term: str) -> tuple[TaskQuerySet, bool]:
         if not search_term:
             return queryset, False
         term = search_term.lower()
         filtered = [
-            t
-            for t in queryset
-            if term in (t.name or "").lower()
-            or term in t.uuid.lower()
-            or term in t.state.lower()
-            or term in (t.worker or "").lower()
-            or term in (t.args or "").lower()
-            or term in (t.kwargs or "").lower()
-            or term in (t.result or "").lower()
+            t for t in queryset
+            if term in (t.name or "").lower() or term in t.uuid.lower() or term in t.state.lower()
+            or term in (t.worker or "").lower() or term in (t.args or "").lower()
+            or term in (t.kwargs or "").lower() or term in (t.result or "").lower()
         ]
         return TaskQuerySet(filtered), False
 
@@ -235,8 +236,6 @@ class TaskAdminMixin:
     def has_delete_permission(self, request: HttpRequest, obj: Task | None = None) -> bool:
         return False
 
-    # Display columns
-
     @admin.display(description=_("UUID"))
     def uuid_short(self, obj: Task) -> str:
         return format_html('<code title="{}">{}</code>', obj.uuid, obj.uuid[:8])
@@ -245,10 +244,8 @@ class TaskAdminMixin:
     def state_display(self, obj: Task) -> str:
         style = TASK_STATE_COLORS.get(obj.state, "background:#f3f4f6;color:#374151;")
         return format_html(
-            '<span style="{}padding:2px 8px;border-radius:4px;'
-            'font-size:11px;font-weight:600;text-transform:uppercase">{}</span>',
-            style,
-            obj.state,
+            '<span style="{}padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase">{}</span>',
+            style, obj.state,
         )
 
     @admin.display(description=_("Received"))
@@ -286,78 +283,91 @@ class TaskAdminMixin:
 # ======================================================================
 
 
-def _count_task_states_per_worker(workers: list[Worker]) -> None:
-    """Count succeeded/failed/retried tasks per worker from the task store."""
-    by_hostname = {w.hostname: w for w in workers}
-    state_field_map = {"SUCCESS": "succeeded", "FAILURE": "failed", "RETRY": "retried"}
-    for task_info in task_store.all():
-        worker_obj = by_hostname.get(task_info.worker) if task_info.worker else None
-        if worker_obj is None:
-            continue
-        field = state_field_map.get(task_info.state)
-        if field:
-            setattr(worker_obj, field, (getattr(worker_obj, field) or 0) + 1)
+def _workers_from_db() -> list[Worker]:
+    try:
+        from django_celeryx.db_models import WorkerEvent
+
+        db = _get_db()
+        workers = []
+        for we in WorkerEvent.objects.using(db).all():
+            worker = Worker()
+            worker.hostname = we.hostname
+            worker.status = we.status
+            worker.active = we.active
+            worker.freq = we.freq
+            worker.sw_ident = we.sw_ident
+            worker.sw_ver = we.sw_ver
+            worker.sw_sys = we.sw_sys
+            worker.last_heartbeat = we.last_heartbeat
+            if we.loadavg:
+                worker.loadavg = ", ".join(f"{x:.2f}" for x in we.loadavg)
+            workers.append(worker)
+        return workers
+    except Exception:
+        logger.debug("Failed to load workers from DB", exc_info=True)
+        return []
 
 
-def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
-    """Enrich worker list with data from inspect() and task store counts."""
+def _enrich_workers(workers: list[Worker]) -> None:
     if not workers:
         return
 
-    _count_task_states_per_worker(workers)
+    # Count task states per worker from DB
+    try:
+        from django.db.models import Count, Q
 
-    by_hostname = {w.hostname: w for w in workers}
+        from django_celeryx.db_models import TaskEvent
 
+        db = _get_db()
+        by_hostname = {w.hostname: w for w in workers}
+        for row in TaskEvent.objects.using(db).values("worker").annotate(
+            succeeded=Count("id", filter=Q(state="SUCCESS")),
+            failed=Count("id", filter=Q(state="FAILURE")),
+            retried=Count("id", filter=Q(state="RETRY")),
+        ):
+            worker = by_hostname.get(row["worker"])
+            if worker:
+                worker.succeeded = row["succeeded"]
+                worker.failed = row["failed"]
+                worker.retried = row["retried"]
+    except Exception:
+        logger.debug("Failed to count task states", exc_info=True)
+
+    # Enrich with inspect() data
     try:
         from django_celeryx.settings import celeryx_settings
 
-        inspector = get_celery_app().control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
-        stats = inspector.stats() or {}
-
+        by_hostname = {w.hostname: w for w in workers}
+        stats = get_celery_app().control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT).stats() or {}
         for hostname, data in stats.items():
             worker = by_hostname.get(hostname)
             if not worker:
                 continue
-
             pool_info = data.get("pool", {})
             impl = pool_info.get("implementation", "")
             if impl:
                 worker.pool = impl.rsplit(":", 1)[-1] if ":" in impl else impl
             worker.concurrency = pool_info.get("max-concurrency")
-
             total = data.get("total", {})
             if total:
                 worker.processed = sum(total.values())
-
             worker.pid = data.get("pid")
             worker.uptime = data.get("uptime")
             worker.prefetch_count = data.get("prefetch_count")
-
-            worker_store.update(
-                hostname,
-                pool=worker.pool,
-                concurrency=worker.concurrency,
-                processed=worker.processed,
-                pid=worker.pid,
-                uptime=worker.uptime,
-                prefetch_count=worker.prefetch_count,
-            )
     except Exception:
         logger.debug("Failed to enrich workers from inspect", exc_info=True)
 
 
 class WorkerQuerySet:
-    """In-memory queryset-like object backed by WorkerStore."""
-
     model = Worker
     ordered = True
     db = "default"
 
     def __init__(self, data: list[Worker] | None = None, *, enriched: bool = False) -> None:
         if data is None:
-            self._data = [Worker.from_worker_info(w) for w in worker_store.all()]
+            self._data = _workers_from_db()
             if not enriched:
-                _enrich_workers_from_inspect(self._data)
+                _enrich_workers(self._data)
         else:
             self._data = list(data)
         self.query = _FakeQuery()
@@ -409,8 +419,6 @@ class WorkerQuerySet:
 
 
 class WorkerStatusFilter(admin.SimpleListFilter):
-    """Filter workers by status."""
-
     title = _("status")
     parameter_name = "status"
 
@@ -425,57 +433,41 @@ class WorkerStatusFilter(admin.SimpleListFilter):
 
 
 class WorkerAdminMixin:
-    """Shared worker list admin behaviour for default and unfold themes.
-
-    Columns match Flower's worker list: hostname, status, active, processed,
-    succeeded, failed, retried, load average.
-    """
-
-    list_display: ClassVar[Any] = [
-        "hostname",
-        "status_display",
-        "active_display",
-        "processed_display",
-        "succeeded_display",
-        "failed_display",
-        "retried_display",
-        "loadavg_display",
-    ]
+    list_display: ClassVar[Any] = ["hostname", "status_display", "active_display", "processed_display",
+                                    "succeeded_display", "failed_display", "retried_display", "loadavg_display"]
     list_display_links: ClassVar[Any] = ["hostname"]
     list_filter: ClassVar[Any] = [WorkerStatusFilter]
     search_fields: ClassVar[Any] = ["hostname"]
     ordering: ClassVar[Any] = ["hostname"]
     list_per_page: ClassVar[int] = 100
 
+    def changelist_view(self, request: HttpRequest, extra_context: dict[str, Any] | None = None) -> Any:
+        extra_context = extra_context or {}
+        try:
+            from django.db.models import Count, Q
+
+            from django_celeryx.db_models import TaskEvent
+
+            db = _get_db()
+            extra_context.update(TaskEvent.objects.using(db).aggregate(
+                total_active=Count("id", filter=Q(state="STARTED")),
+                total_processed=Count("id"),
+                total_succeeded=Count("id", filter=Q(state="SUCCESS")),
+                total_failed=Count("id", filter=Q(state="FAILURE")),
+                total_retried=Count("id", filter=Q(state="RETRY")),
+            ))
+        except Exception:
+            extra_context.update({"total_active": 0, "total_processed": 0, "total_succeeded": 0, "total_failed": 0, "total_retried": 0})
+        return super().changelist_view(request, extra_context)  # type: ignore[misc]
+
     def get_queryset(self, request: HttpRequest) -> WorkerQuerySet:
         return WorkerQuerySet()
 
-    def get_search_results(
-        self,
-        request: HttpRequest,
-        queryset: WorkerQuerySet,
-        search_term: str,
-    ) -> tuple[WorkerQuerySet, bool]:
+    def get_search_results(self, request: HttpRequest, queryset: WorkerQuerySet, search_term: str) -> tuple[WorkerQuerySet, bool]:
         if not search_term:
             return queryset, False
         term = search_term.lower()
-        filtered = [w for w in queryset if term in w.hostname.lower()]
-        return WorkerQuerySet(filtered, enriched=True), False
-
-    def changelist_view(
-        self,
-        request: HttpRequest,
-        extra_context: dict[str, Any] | None = None,
-    ) -> Any:
-        extra_context = extra_context or {}
-        # Compute aggregate totals matching Flower's footer counters
-        all_tasks = task_store.all()
-        extra_context["total_active"] = sum(1 for t in all_tasks if t.state == "STARTED")
-        extra_context["total_processed"] = len(all_tasks)
-        extra_context["total_succeeded"] = sum(1 for t in all_tasks if t.state == "SUCCESS")
-        extra_context["total_failed"] = sum(1 for t in all_tasks if t.state == "FAILURE")
-        extra_context["total_retried"] = sum(1 for t in all_tasks if t.state == "RETRY")
-        return super().changelist_view(request, extra_context)  # type: ignore[misc]
+        return WorkerQuerySet([w for w in queryset if term in w.hostname.lower()], enriched=True), False
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -483,16 +475,12 @@ class WorkerAdminMixin:
     def has_delete_permission(self, request: HttpRequest, obj: Worker | None = None) -> bool:
         return False
 
-    # Display columns
-
     @admin.display(description=_("Status"))
     def status_display(self, obj: Worker) -> str:
         style = WORKER_STATUS_COLORS.get(obj.status, "background:#f3f4f6;color:#374151;")
         return format_html(
-            '<span style="{}padding:2px 8px;border-radius:4px;'
-            'font-size:11px;font-weight:600;text-transform:uppercase">{}</span>',
-            style,
-            obj.status,
+            '<span style="{}padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase">{}</span>',
+            style, obj.status,
         )
 
     @admin.display(description=_("Active"))
@@ -501,9 +489,7 @@ class WorkerAdminMixin:
 
     @admin.display(description=_("Processed"))
     def processed_display(self, obj: Worker) -> str:
-        if obj.processed is not None:
-            return format_html("<code>{}</code>", obj.processed)
-        return "-"
+        return format_html("<code>{}</code>", obj.processed) if obj.processed is not None else "-"
 
     @admin.display(description=_("Succeeded"))
     def succeeded_display(self, obj: Worker) -> str:
@@ -519,9 +505,7 @@ class WorkerAdminMixin:
 
     @admin.display(description=_("Load Average"))
     def loadavg_display(self, obj: Worker) -> str:
-        if obj.loadavg:
-            return format_html("<code>{}</code>", obj.loadavg)
-        return "-"
+        return format_html("<code>{}</code>", obj.loadavg) if obj.loadavg else "-"
 
 
 # ======================================================================
@@ -530,14 +514,10 @@ class WorkerAdminMixin:
 
 
 def _fetch_queues() -> list[Queue]:
-    """Fetch active queues from all workers via inspect().active_queues()."""
     try:
         from django_celeryx.settings import celeryx_settings
 
-        inspector = get_celery_app().control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
-        all_queues = inspector.active_queues() or {}
-
-        # Aggregate: same queue may appear on multiple workers
+        all_queues = get_celery_app().control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT).active_queues() or {}
         queue_map: dict[str, Queue] = {}
         for queues in all_queues.values():
             for q_data in queues:
@@ -551,16 +531,13 @@ def _fetch_queues() -> list[Queue]:
                     queue.consumers = 0
                     queue_map[name] = queue
                 queue_map[name].consumers += 1
-
         return sorted(queue_map.values(), key=lambda q: q.name)
     except Exception:
-        logger.debug("Failed to fetch queues from inspect", exc_info=True)
+        logger.debug("Failed to fetch queues", exc_info=True)
         return []
 
 
 class QueueQuerySet:
-    """In-memory queryset-like object for queues, populated from inspect()."""
-
     model = Queue
     ordered = True
     db = "default"
@@ -616,15 +593,8 @@ class QueueQuerySet:
 
 
 class QueueAdminMixin:
-    """Shared queue list admin behaviour. Columns match Flower's broker page."""
-
-    list_display: ClassVar[Any] = [
-        "name",
-        "exchange_display",
-        "routing_key_display",
-        "consumers_display",
-    ]
-    list_display_links: ClassVar[Any] = None  # No detail page — Flower doesn't have one either
+    list_display: ClassVar[Any] = ["name", "exchange_display", "routing_key_display", "consumers_display"]
+    list_display_links: ClassVar[Any] = None
     search_fields: ClassVar[Any] = ["name"]
     ordering: ClassVar[Any] = ["name"]
     list_per_page: ClassVar[int] = 100
@@ -632,17 +602,10 @@ class QueueAdminMixin:
     def get_queryset(self, request: HttpRequest) -> QueueQuerySet:
         return QueueQuerySet()
 
-    def get_search_results(
-        self,
-        request: HttpRequest,
-        queryset: QueueQuerySet,
-        search_term: str,
-    ) -> tuple[QueueQuerySet, bool]:
+    def get_search_results(self, request: HttpRequest, queryset: QueueQuerySet, search_term: str) -> tuple[QueueQuerySet, bool]:
         if not search_term:
             return queryset, False
-        term = search_term.lower()
-        filtered = [q for q in queryset if term in q.name.lower()]
-        return QueueQuerySet(filtered), False
+        return QueueQuerySet([q for q in queryset if search_term.lower() in q.name.lower()]), False
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -669,22 +632,15 @@ class QueueAdminMixin:
 
 
 def _fetch_registered_tasks() -> list[RegisteredTask]:
-    """Fetch registered task types from workers via inspect().registered()."""
     try:
         from django_celeryx.settings import celeryx_settings
 
         app = get_celery_app()
-        inspector = app.control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
-        all_registered = inspector.registered() or {}
-
-        # Merge task names from all workers
+        all_registered = app.control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT).registered() or {}
         names: set[str] = set()
         for worker_tasks in all_registered.values():
             names.update(worker_tasks)
-
-        # Also include local app registry (works even without workers)
         names.update(app.tasks)
-
         tasks = []
         for name in sorted(names):
             if name.startswith("celery."):
@@ -699,8 +655,6 @@ def _fetch_registered_tasks() -> list[RegisteredTask]:
 
 
 class RegisteredTaskQuerySet:
-    """In-memory queryset-like object for registered task types."""
-
     model = RegisteredTask
     ordered = True
     db = "default"
@@ -750,12 +704,7 @@ class RegisteredTaskQuerySet:
 
 
 class RegisteredTaskAdminMixin:
-    """Admin mixin for registered task types. Click links to filtered task list."""
-
-    list_display: ClassVar[Any] = [
-        "name",
-        "tasks_link",
-    ]
+    list_display: ClassVar[Any] = ["name", "tasks_link"]
     list_display_links: ClassVar[Any] = ["name"]
     search_fields: ClassVar[Any] = ["name"]
     ordering: ClassVar[Any] = ["name"]
@@ -764,17 +713,10 @@ class RegisteredTaskAdminMixin:
     def get_queryset(self, request: HttpRequest) -> RegisteredTaskQuerySet:
         return RegisteredTaskQuerySet()
 
-    def get_search_results(
-        self,
-        request: HttpRequest,
-        queryset: RegisteredTaskQuerySet,
-        search_term: str,
-    ) -> tuple[RegisteredTaskQuerySet, bool]:
+    def get_search_results(self, request: HttpRequest, queryset: RegisteredTaskQuerySet, search_term: str) -> tuple[RegisteredTaskQuerySet, bool]:
         if not search_term:
             return queryset, False
-        term = search_term.lower()
-        filtered = [t for t in queryset if term in t.name.lower()]
-        return RegisteredTaskQuerySet(filtered), False
+        return RegisteredTaskQuerySet([t for t in queryset if search_term.lower() in t.name.lower()]), False
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False

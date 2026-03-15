@@ -10,7 +10,6 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import render
 
 from django_celeryx.admin.helpers import get_celery_app
-from django_celeryx.state.workers import worker_store
 
 if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
@@ -156,7 +155,10 @@ def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
     if response is not None:
         return response
 
-    worker = worker_store.get(hostname)
+    from django_celeryx.db_models import WorkerEvent
+    from django_celeryx.settings import get_db_alias
+
+    worker = WorkerEvent.objects.using(get_db_alias()).filter(hostname=hostname).first()
     tab = request.GET.get("tab", "pool")
     if tab not in WORKER_TABS:
         tab = "pool"

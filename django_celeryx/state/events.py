@@ -20,6 +20,9 @@ _BACKOFF_MULTIPLIER = 2.0
 # How often to broadcast enable_events (seconds)
 _ENABLE_EVENTS_INTERVAL = 60.0
 
+# Run cleanup every hour
+_CLEANUP_INTERVAL = 3600.0
+
 
 def _get_celery_app() -> Any:
     """Get the Celery app instance."""
@@ -38,16 +41,13 @@ def _get_celery_app() -> Any:
 
 
 def _handle_task_event(event: dict) -> None:
-    """Update TaskStore from a task event."""
-    from django_celeryx.state.tasks import task_store
-
+    """Write task event to database."""
     uuid = event.get("uuid")
     if not uuid:
         return
 
     fields: dict = {}
 
-    # Map event type to state
     event_type = event.get("type", "")
     state_map = {
         "task-sent": "PENDING",
@@ -62,48 +62,36 @@ def _handle_task_event(event: dict) -> None:
     if event_type in state_map:
         fields["state"] = state_map[event_type]
 
-    # Common fields
     for key in ("name", "args", "kwargs", "eta", "expires", "exchange", "routing_key", "retries",
                 "result", "exception", "traceback", "runtime"):
         if key in event:
             fields[key] = event[key]
 
-    # Worker hostname
     if "hostname" in event and event_type in ("task-received", "task-started"):
         fields["worker"] = event["hostname"]
 
-    # Timestamps — map event type to timestamp field name
     timestamp_fields = {
         "task-received": "received",
         "task-started": "started",
         "task-succeeded": "succeeded",
         "task-failed": "failed",
-        "task-retried": "retried",
+        "task-retried": "retried_at",
         "task-revoked": "revoked",
     }
     if "timestamp" in event and event_type in timestamp_fields:
         fields[timestamp_fields[event_type]] = event["timestamp"]
 
-    # Parent/root IDs
     for key in ("parent_id", "root_id"):
         if key in event:
             fields[key] = event[key]
 
-    task_store.update(uuid, **fields)
-
-    # Persist to DB (retried → retried_at for DB field name)
     from django_celeryx.state.persistence import persist_task_event
 
-    db_fields = dict(fields)
-    if "retried" in db_fields:
-        db_fields["retried_at"] = db_fields.pop("retried")
-    persist_task_event(uuid, **db_fields)
+    persist_task_event(uuid, **fields)
 
 
 def _handle_worker_event(event: dict) -> None:
-    """Update WorkerStore from a worker event."""
-    from django_celeryx.state.workers import worker_store
-
+    """Write worker event to database."""
     hostname = event.get("hostname")
     if not hostname:
         return
@@ -122,8 +110,6 @@ def _handle_worker_event(event: dict) -> None:
                 fields[key] = event[key]
         if "timestamp" in event:
             fields["last_heartbeat"] = event["timestamp"]
-
-    worker_store.update(hostname, **fields)
 
     from django_celeryx.state.persistence import persist_worker_event
 
@@ -184,7 +170,6 @@ class EventListener(threading.Thread):
 
                 now = time.monotonic()
 
-                # Periodically broadcast enable_events
                 if now - last_enable_events > _ENABLE_EVENTS_INTERVAL:
                     try:
                         app.control.enable_events()
@@ -192,7 +177,6 @@ class EventListener(threading.Thread):
                         logger.debug("Failed to broadcast enable_events", exc_info=True)
                     last_enable_events = now
 
-                # Periodically clean up old persisted events
                 if now - last_cleanup > _CLEANUP_INTERVAL:
                     try:
                         from django_celeryx.state.persistence import cleanup_old_events
@@ -201,10 +185,6 @@ class EventListener(threading.Thread):
                     except Exception:
                         logger.debug("Failed to run cleanup", exc_info=True)
                     last_cleanup = now
-
-
-# Run cleanup every hour
-_CLEANUP_INTERVAL = 3600.0
 
 
 def start_event_listener() -> None:

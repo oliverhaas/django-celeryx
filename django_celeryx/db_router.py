@@ -4,7 +4,7 @@ Routes all managed celeryx models (TaskEvent, WorkerEvent) to the database
 specified by CELERYX["DATABASE"]. Unmanaged models (Task, Worker, Queue,
 RegisteredTask) are not affected since they don't hit the database.
 
-Usage in Django settings::
+Usage in Django settings (only needed when using a non-default database)::
 
     DATABASE_ROUTERS = ["django_celeryx.db_router.CeleryXRouter"]
 """
@@ -17,12 +17,12 @@ _CELERYX_APP_LABEL = "django_celeryx"
 
 
 class CeleryXRouter:
-    """Route celeryx models to the configured CELERYX DATABASE."""
+    """Route celeryx managed models to the configured database."""
 
-    def _get_db(self) -> str | None:
-        from django_celeryx.settings import celeryx_settings
+    def _get_db(self) -> str:
+        from django_celeryx.settings import get_db_alias
 
-        return celeryx_settings.DATABASE
+        return get_db_alias()
 
     def db_for_read(self, model: type, **hints: Any) -> str | None:
         if model._meta.app_label == _CELERYX_APP_LABEL and model._meta.managed:  # type: ignore[attr-defined]
@@ -41,12 +41,9 @@ class CeleryXRouter:
 
     def allow_migrate(self, db: str, app_label: str, **hints: Any) -> bool | None:
         if app_label == _CELERYX_APP_LABEL:
-            target_db = self._get_db()
-            if target_db is None:
-                return False  # No DB configured — don't migrate
-            return db == target_db
+            return db == self._get_db()
         # Don't let other apps migrate to our DB (if it's a dedicated one)
         target_db = self._get_db()
-        if target_db and db == target_db and target_db != "default":
+        if db == target_db and target_db not in ("default", "celeryx_default"):
             return False
         return None
