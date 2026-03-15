@@ -132,6 +132,8 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
 class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, _WorkerBase):  # type: ignore[misc]
     """Admin for Celery workers."""
 
+    change_list_template = "admin/django_celeryx/worker/change_list.html"  # type: ignore[misc]
+
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
 

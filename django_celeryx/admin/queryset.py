@@ -155,6 +155,27 @@ class TaskWorkerFilter(admin.SimpleListFilter):
         return queryset
 
 
+# Map TASK_COLUMNS config names to display method names or raw field names
+_TASK_COLUMN_MAP: dict[str, str] = {
+    "name": "name",
+    "uuid": "uuid_short",
+    "state": "state_display",
+    "worker": "worker",
+    "received": "received_display",
+    "started": "started_display",
+    "runtime": "runtime_display",
+    "args": "args",
+    "kwargs": "kwargs",
+    "result": "result",
+    "exchange": "exchange",
+    "routing_key": "routing_key",
+    "retries": "retries",
+    "exception": "exception",
+    "eta": "eta",
+    "expires": "expires",
+}
+
+
 class TaskAdminMixin:
     """Shared task list admin behaviour for default and unfold themes."""
 
@@ -171,6 +192,17 @@ class TaskAdminMixin:
     search_fields: ClassVar[Any] = ["name", "uuid"]
     ordering: ClassVar[Any] = ["-received"]
     list_per_page: ClassVar[int] = 50
+
+    def get_list_display(self, request: HttpRequest) -> list[str]:
+        """Build list_display from TASK_COLUMNS setting."""
+        from django_celeryx.settings import celeryx_settings
+
+        columns = []
+        for col in celeryx_settings.TASK_COLUMNS:
+            display_name = _TASK_COLUMN_MAP.get(col)
+            if display_name:
+                columns.append(display_name)
+        return columns or list(self.list_display)
 
     def get_queryset(self, request: HttpRequest) -> TaskQuerySet:
         return TaskQuerySet()
@@ -227,6 +259,16 @@ class TaskAdminMixin:
                 return format_html("<code>{}</code>", dt.strftime("%H:%M:%S"))
             except (ValueError, TypeError, OSError):
                 return format_html("<code>{}</code>", obj.received)
+        return "-"
+
+    @admin.display(description=_("Started"))
+    def started_display(self, obj: Task) -> str:
+        if obj.started:
+            try:
+                dt = datetime.datetime.fromtimestamp(float(obj.started), tz=datetime.UTC)
+                return format_html("<code>{}</code>", dt.strftime("%H:%M:%S"))
+            except (ValueError, TypeError, OSError):
+                return format_html("<code>{}</code>", obj.started)
         return "-"
 
     @admin.display(description=_("Runtime"))
@@ -419,6 +461,21 @@ class WorkerAdminMixin:
         term = search_term.lower()
         filtered = [w for w in queryset if term in w.hostname.lower()]
         return WorkerQuerySet(filtered, enriched=True), False
+
+    def changelist_view(
+        self,
+        request: HttpRequest,
+        extra_context: dict[str, Any] | None = None,
+    ) -> Any:
+        extra_context = extra_context or {}
+        # Compute aggregate totals matching Flower's footer counters
+        all_tasks = task_store.all()
+        extra_context["total_active"] = sum(1 for t in all_tasks if t.state == "STARTED")
+        extra_context["total_processed"] = len(all_tasks)
+        extra_context["total_succeeded"] = sum(1 for t in all_tasks if t.state == "SUCCESS")
+        extra_context["total_failed"] = sum(1 for t in all_tasks if t.state == "FAILURE")
+        extra_context["total_retried"] = sum(1 for t in all_tasks if t.state == "RETRY")
+        return super().changelist_view(request, extra_context)  # type: ignore[misc]
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False

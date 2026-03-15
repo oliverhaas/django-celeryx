@@ -1,0 +1,16 @@
+{% extends "admin/django_celeryx/change_list.html" %}
+{% load i18n %}
+
+{% block result_list %}
+  <fieldset class="module" style="margin-bottom: 15px; padding: 10px 15px;">
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+      <span><strong>{% translate 'Active' %}:</strong> <code>{{ total_active }}</code></span>
+      <span><strong>{% translate 'Processed' %}:</strong> <code>{{ total_processed }}</code></span>
+      <span><strong>{% translate 'Succeeded' %}:</strong> <code>{{ total_succeeded }}</code></span>
+      <span><strong>{% translate 'Failed' %}:</strong> <code>{{ total_failed }}</code></span>
+      <span><strong>{% translate 'Retried' %}:</strong> <code>{{ total_retried }}</code></span>
+    </div>
+  </fieldset>
+
+  {{ block.super }}
+{% endblock %}
