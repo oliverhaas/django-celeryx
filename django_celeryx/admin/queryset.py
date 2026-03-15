@@ -117,6 +117,44 @@ class TaskStateFilter(admin.SimpleListFilter):
         return queryset
 
 
+class TaskNameFilter(admin.SimpleListFilter):
+    """Filter tasks by task name (registered task type)."""
+
+    title = _("task name")
+    parameter_name = "task_name"
+
+    def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
+        try:
+            app = get_celery_app()
+            names = sorted(name for name in app.tasks if not name.startswith("celery."))
+            return [(n, n) for n in names]
+        except Exception:
+            return []
+
+    def queryset(self, request: HttpRequest, queryset: TaskQuerySet) -> TaskQuerySet:  # type: ignore[override]
+        value = self.value()
+        if value:
+            return TaskQuerySet([t for t in queryset if t.name == value])
+        return queryset
+
+
+class TaskWorkerFilter(admin.SimpleListFilter):
+    """Filter tasks by worker."""
+
+    title = _("worker")
+    parameter_name = "task_worker"
+
+    def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
+        hostnames = sorted({w.hostname for w in worker_store.all()})
+        return [(h, h) for h in hostnames]
+
+    def queryset(self, request: HttpRequest, queryset: TaskQuerySet) -> TaskQuerySet:  # type: ignore[override]
+        value = self.value()
+        if value:
+            return TaskQuerySet([t for t in queryset if t.worker == value])
+        return queryset
+
+
 class TaskAdminMixin:
     """Shared task list admin behaviour for default and unfold themes."""
 
@@ -129,7 +167,7 @@ class TaskAdminMixin:
         "runtime_display",
     ]
     list_display_links: ClassVar[Any] = ["name"]
-    list_filter: ClassVar[Any] = [TaskStateFilter]
+    list_filter: ClassVar[Any] = [TaskStateFilter, TaskNameFilter, TaskWorkerFilter]
     search_fields: ClassVar[Any] = ["name", "uuid"]
     ordering: ClassVar[Any] = ["-received"]
     list_per_page: ClassVar[int] = 50
