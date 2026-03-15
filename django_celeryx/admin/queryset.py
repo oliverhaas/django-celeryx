@@ -158,8 +158,15 @@ class TaskNameFilter(admin.SimpleListFilter):
 
     def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
         try:
-            app = get_celery_app()
-            names = sorted(name for name in app.tasks if not name.startswith("celery."))
+            from django_celeryx.db_models import TaskEvent
+
+            db = _get_db()
+            names = sorted(
+                TaskEvent.objects.using(db)
+                .exclude(name="")
+                .values_list("name", flat=True)
+                .distinct()
+            )
             return [(n, n) for n in names]
         except Exception:
             return []
