@@ -146,15 +146,6 @@ class TaskAdminMixin:
         if not search_term:
             return queryset, False
         term = search_term.lower()
-
-        # Support structured search: state:FAILURE, name:task_name, etc.
-        if ":" in term:
-            prefix, value = term.split(":", 1)
-            if prefix in ("state", "name", "worker", "uuid", "args", "kwargs", "result"):
-                filtered = [t for t in queryset if value in str(getattr(t, prefix, "")).lower()]
-                return TaskQuerySet(filtered), False
-
-        # Free text search across key fields
         filtered = [
             t
             for t in queryset
@@ -162,6 +153,9 @@ class TaskAdminMixin:
             or term in t.uuid.lower()
             or term in t.state.lower()
             or term in (t.worker or "").lower()
+            or term in (t.args or "").lower()
+            or term in (t.kwargs or "").lower()
+            or term in (t.result or "").lower()
         ]
         return TaskQuerySet(filtered), False
 
@@ -700,5 +694,5 @@ class RegisteredTaskAdminMixin:
     def tasks_link(self, obj: RegisteredTask) -> str:
         from django.urls import reverse
 
-        url = reverse("admin:django_celeryx_task_changelist") + f"?q=name:{obj.name}"
+        url = reverse("admin:django_celeryx_task_changelist") + f"?q={obj.name}"
         return format_html('<a href="{}">View Tasks &rarr;</a>', url)
