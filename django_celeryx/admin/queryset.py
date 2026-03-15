@@ -83,7 +83,7 @@ class TaskQuerySet:
             bare = field.lstrip("-")
             reverse = field.startswith("-")
             if bare in ("uuid", "pk", "name", "state", "worker", "received", "started", "runtime"):
-                clone._data.sort(key=lambda t: getattr(t, bare, "") or "", reverse=reverse)
+                clone._data.sort(key=lambda t: str(getattr(t, bare, "") or ""), reverse=reverse)
                 break
         return clone
 

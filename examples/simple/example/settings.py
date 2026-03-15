@@ -13,6 +13,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "django_celeryx.admin",
+    "example.apps.ExampleConfig",
 ]
 
 MIDDLEWARE = [

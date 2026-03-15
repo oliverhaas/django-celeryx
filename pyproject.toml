@@ -125,6 +125,7 @@ suppress-none-returning = true
   "ANN",    # Type annotations not required in examples
   "INP001", # Examples are standalone projects, not namespace packages
   "S105",   # Hardcoded passwords in example settings
+  "S110",   # try-except-pass is fine for resilient startup
   "S311",   # random is fine for examples
   "PTH",    # os.path is fine in examples
 ]
