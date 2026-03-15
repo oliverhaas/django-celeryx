@@ -4,13 +4,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin.utils import unquote
 from django.core.exceptions import PermissionDenied
 from django.urls import path
+from django.utils.translation import gettext_lazy as _
 
-from .models import Queue, Task, Worker
-from .queryset import QueueAdminMixin, TaskAdminMixin, WorkerAdminMixin
+from .models import Queue, RegisteredTask, Task, Worker
+from .queryset import (
+    QueueAdminMixin,
+    RegisteredTaskAdminMixin,
+    TaskAdminMixin,
+    WorkerAdminMixin,
+)
 
 if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
@@ -18,10 +24,12 @@ if TYPE_CHECKING:
     _TaskBase = admin.ModelAdmin[Task]
     _WorkerBase = admin.ModelAdmin[Worker]
     _QueueBase = admin.ModelAdmin[Queue]
+    _RegisteredTaskBase = admin.ModelAdmin[RegisteredTask]
 else:
     _TaskBase = admin.ModelAdmin
     _WorkerBase = admin.ModelAdmin
     _QueueBase = admin.ModelAdmin
+    _RegisteredTaskBase = admin.ModelAdmin
 
 
 class LiveUpdateMixin:
@@ -42,7 +50,6 @@ class LiveUpdateMixin:
         extra_context["live"] = live
         extra_context["refresh_interval"] = celeryx_settings.AUTO_REFRESH_INTERVAL
 
-        # Build toggle URL: add or remove ?live=on, preserving other params
         params = request.GET.copy()
         if live:
             params.pop("live", None)
@@ -50,8 +57,6 @@ class LiveUpdateMixin:
             params["live"] = "on"
         toggle_qs = params.urlencode()
         extra_context["live_toggle_url"] = f"?{toggle_qs}" if toggle_qs else "?"
-
-        # Build the URL htmx will poll (same page with all current params)
         extra_context["live_url"] = request.get_full_path()
 
         return super().changelist_view(request, extra_context)  # type: ignore[misc]
@@ -60,6 +65,8 @@ class LiveUpdateMixin:
 @admin.register(Task)
 class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[misc]
     """Admin for Celery tasks."""
+
+    actions = ["revoke_selected", "terminate_selected"]  # noqa: RUF012
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -91,6 +98,34 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
         from .views.task_detail import task_detail_view
 
         return task_detail_view(request, unquote(object_id))
+
+    @admin.action(description=_("Revoke selected tasks"))
+    def revoke_selected(self, request: HttpRequest, queryset: Any) -> None:
+        from django_celeryx.control.tasks import revoke_task
+
+        count = 0
+        for task in queryset:
+            try:
+                revoke_task(task.uuid)
+                count += 1
+            except Exception as exc:
+                messages.error(request, f"Failed to revoke {task.uuid[:8]}: {exc}")
+        if count:
+            messages.success(request, f"Revoked {count} task(s).")
+
+    @admin.action(description=_("Terminate selected tasks"))
+    def terminate_selected(self, request: HttpRequest, queryset: Any) -> None:
+        from django_celeryx.control.tasks import revoke_task
+
+        count = 0
+        for task in queryset:
+            try:
+                revoke_task(task.uuid, terminate=True)
+                count += 1
+            except Exception as exc:
+                messages.error(request, f"Failed to terminate {task.uuid[:8]}: {exc}")
+        if count:
+            messages.success(request, f"Terminated {count} task(s).")
 
 
 @admin.register(Worker)
@@ -137,4 +172,15 @@ class QueueAdmin(LiveUpdateMixin, QueueAdminMixin, _QueueBase):  # type: ignore[
         return False
 
     def has_delete_permission(self, request: HttpRequest, obj: Queue | None = None) -> bool:
+        return False
+
+
+@admin.register(RegisteredTask)
+class RegisteredTaskAdmin(RegisteredTaskAdminMixin, _RegisteredTaskBase):  # type: ignore[misc]
+    """Admin for registered Celery task types."""
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: RegisteredTask | None = None) -> bool:
         return False

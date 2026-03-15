@@ -5,7 +5,8 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.utils.html import format_html
 
@@ -32,9 +33,40 @@ def _state_badge(state: str) -> str:
     )
 
 
+def _handle_post(request: HttpRequest, task_id: str) -> HttpResponse | None:
+    """Handle control action POST requests."""
+    if request.method != "POST":
+        return None
+
+    action = request.POST.get("action")
+    if not action:
+        return None
+
+    from django_celeryx.control.tasks import revoke_task
+
+    try:
+        if action == "revoke":
+            revoke_task(task_id)
+            messages.success(request, f"Task {task_id[:8]} revoked.")
+        elif action == "terminate":
+            signal = request.POST.get("signal", "SIGTERM")
+            revoke_task(task_id, terminate=True, signal=signal)
+            messages.success(request, f"Task {task_id[:8]} terminated ({signal}).")
+    except Exception as exc:
+        messages.error(request, f"Action failed: {exc}")
+
+    return HttpResponseRedirect(request.get_full_path())
+
+
 def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
     """Display task details matching Flower's task detail page."""
+    response = _handle_post(request, task_id)
+    if response is not None:
+        return response
+
     task = task_store.get(task_id)
+
+    can_revoke = task is not None and task.state in ("PENDING", "RECEIVED", "STARTED")
 
     context = admin.site.each_context(request)
     context.update({
@@ -42,6 +74,7 @@ def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
         "task_id": task_id,
         "task": task,
         "state_badge": _state_badge(task.state) if task else "",
+        "can_revoke": can_revoke,
         "opts": {"app_label": "django_celeryx", "model_name": "task", "verbose_name_plural": "Tasks",
                  "app_config": type("", (), {"verbose_name": "django-celeryx"})()},
         "received_fmt": _format_ts(task.received) if task else None,

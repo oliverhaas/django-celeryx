@@ -145,7 +145,8 @@ class Queue(models.Model):
     """Unmanaged model representing a Celery queue for admin display."""
 
     name = models.CharField(max_length=255, primary_key=True)
-    messages = models.IntegerField(default=0)
+    exchange = models.CharField(max_length=255, blank=True, default="")
+    routing_key = models.CharField(max_length=255, blank=True, default="")
     consumers = models.IntegerField(default=0)
 
     class Meta:
@@ -157,6 +158,30 @@ class Queue(models.Model):
 
     def __str__(self) -> str:
         return self.name or "Queue"
+
+    @property
+    def pk(self) -> str:
+        return self.name
+
+    @pk.setter
+    def pk(self, value: str) -> None:  # type: ignore[return]
+        self.name = value
+
+
+class RegisteredTask(models.Model):
+    """Unmanaged model representing a registered Celery task type."""
+
+    name = models.CharField(max_length=500, primary_key=True)
+
+    class Meta:
+        managed = False
+        app_label = "django_celeryx"
+        default_permissions = ("view",)
+        verbose_name = "Registered Task"
+        verbose_name_plural = "Registered Tasks"
+
+    def __str__(self) -> str:
+        return self.name or "Task"
 
     @property
     def pk(self) -> str:

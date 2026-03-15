@@ -69,6 +69,44 @@
         {% endif %}
     </fieldset>
 
+    <fieldset class="module aligned">
+        <h2>{% translate 'Pool Controls' %}</h2>
+        <div class="form-row" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+                <input type="hidden" name="action" value="pool_grow">
+                <label>{% translate 'Grow' %}:</label>
+                <input type="number" name="n" value="1" min="1" max="10" style="width:50px;">
+                <input type="submit" value="{% translate 'Grow' %}" class="default">
+            </form>
+            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+                <input type="hidden" name="action" value="pool_shrink">
+                <label>{% translate 'Shrink' %}:</label>
+                <input type="number" name="n" value="1" min="1" max="10" style="width:50px;">
+                <input type="submit" value="{% translate 'Shrink' %}" class="default">
+            </form>
+            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+                <input type="hidden" name="action" value="autoscale">
+                <label>{% translate 'Autoscale' %}:</label>
+                <input type="number" name="min" placeholder="min" style="width:50px;">
+                <input type="number" name="max" placeholder="max" style="width:50px;">
+                <input type="submit" value="{% translate 'Set' %}" class="default">
+            </form>
+        </div>
+        <div class="form-row" style="display:flex; gap:10px; margin-top:8px;">
+            <form method="post">{% csrf_token %}
+                <input type="hidden" name="action" value="pool_restart">
+                <input type="submit" value="{% translate 'Restart Pool' %}" class="default"
+                    onclick="return confirm('Restart the worker pool?');">
+            </form>
+            <form method="post">{% csrf_token %}
+                <input type="hidden" name="action" value="shutdown">
+                <input type="submit" value="{% translate 'Shutdown Worker' %}"
+                    style="background:#dc2626; color:white; border:none; padding:6px 12px; cursor:pointer;"
+                    onclick="return confirm('Shutdown this worker? This cannot be undone.');">
+            </form>
+        </div>
+    </fieldset>
+
     {% elif current_tab == "queues" %}
     {# ===== QUEUES TAB ===== #}
     <fieldset class="module aligned">
@@ -99,6 +137,25 @@
         {% else %}
         <div class="form-row"><p>{% translate 'No active queues.' %}</p></div>
         {% endif %}
+    </fieldset>
+
+    <fieldset class="module aligned">
+        <h2>{% translate 'Consumer Controls' %}</h2>
+        <div class="form-row" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+                <input type="hidden" name="action" value="add_consumer">
+                <label>{% translate 'Queue' %}:</label>
+                <input type="text" name="queue" placeholder="queue name" style="width:150px;">
+                <input type="submit" value="{% translate 'Add Consumer' %}" class="default">
+            </form>
+            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+                <input type="hidden" name="action" value="cancel_consumer">
+                <label>{% translate 'Queue' %}:</label>
+                <input type="text" name="queue" placeholder="queue name" style="width:150px;">
+                <input type="submit" value="{% translate 'Cancel Consumer' %}" class="default"
+                    onclick="return confirm('Stop consuming from this queue?');">
+            </form>
+        </div>
     </fieldset>
 
     {% elif current_tab == "tasks" %}
@@ -230,8 +287,46 @@
     {% elif current_tab == "limits" %}
     {# ===== LIMITS TAB ===== #}
     <fieldset class="module aligned">
-        <h2>{% translate 'Rate Limits & Timeouts' %}</h2>
-        {% if registered_tasks %}
+        <h2>{% translate 'Set Rate Limit' %}</h2>
+        <div class="form-row">
+            <form method="post" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">{% csrf_token %}
+                <input type="hidden" name="action" value="rate_limit">
+                <label>{% translate 'Task' %}:</label>
+                <select name="task_name" style="width:250px;">
+                    {% for name in registered_tasks %}
+                    <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <label>{% translate 'Rate' %}:</label>
+                <input type="text" name="rate" placeholder="e.g. 10/m" style="width:80px;">
+                <input type="submit" value="{% translate 'Set' %}" class="default">
+            </form>
+        </div>
+    </fieldset>
+
+    <fieldset class="module aligned">
+        <h2>{% translate 'Set Time Limit' %}</h2>
+        <div class="form-row">
+            <form method="post" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">{% csrf_token %}
+                <input type="hidden" name="action" value="time_limit">
+                <label>{% translate 'Task' %}:</label>
+                <select name="task_name" style="width:250px;">
+                    {% for name in registered_tasks %}
+                    <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <label>{% translate 'Soft' %}:</label>
+                <input type="number" name="soft" placeholder="seconds" style="width:80px;">
+                <label>{% translate 'Hard' %}:</label>
+                <input type="number" name="hard" placeholder="seconds" style="width:80px;">
+                <input type="submit" value="{% translate 'Set' %}" class="default">
+            </form>
+        </div>
+    </fieldset>
+
+    {% if registered_tasks %}
+    <fieldset class="module aligned">
+        <h2>{% translate 'Registered Tasks' %} ({{ registered_tasks|length }})</h2>
         <div class="results">
             <table style="width:100%;">
                 <thead>
@@ -248,10 +343,8 @@
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <div class="form-row"><p>{% translate 'No registered tasks.' %}</p></div>
-        {% endif %}
     </fieldset>
+    {% endif %}
 
     {% elif current_tab == "config" %}
     {# ===== CONFIG TAB ===== #}

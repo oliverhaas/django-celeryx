@@ -14,7 +14,8 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
-from django_celeryx.admin.models import Queue, Task, Worker
+from django_celeryx.admin.helpers import get_celery_app
+from django_celeryx.admin.models import Queue, RegisteredTask, Task, Worker
 from django_celeryx.state.tasks import task_store
 from django_celeryx.state.workers import worker_store
 from django_celeryx.types import TASK_STATE_COLORS, WORKER_STATUS_COLORS, TaskState, WorkerStatus
@@ -236,18 +237,7 @@ def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
     try:
         from django_celeryx.settings import celeryx_settings
 
-        celery_app = None
-        if celeryx_settings.CELERY_APP:
-            from importlib import import_module
-
-            module_path, attr = celeryx_settings.CELERY_APP.rsplit(".", 1)
-            module = import_module(module_path)
-            celery_app = getattr(module, attr)
-        else:
-            from celery import current_app
-            celery_app = current_app
-
-        inspector = celery_app.control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
+        inspector = get_celery_app().control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
         stats = inspector.stats() or {}
 
         for hostname, data in stats.items():
@@ -450,15 +440,44 @@ class WorkerAdminMixin:
 # ======================================================================
 
 
+def _fetch_queues() -> list[Queue]:
+    """Fetch active queues from all workers via inspect().active_queues()."""
+    try:
+        from django_celeryx.settings import celeryx_settings
+
+        inspector = get_celery_app().control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
+        all_queues = inspector.active_queues() or {}
+
+        # Aggregate: same queue may appear on multiple workers
+        queue_map: dict[str, Queue] = {}
+        for queues in all_queues.values():
+            for q_data in queues:
+                name = q_data.get("name", "")
+                if name not in queue_map:
+                    queue = Queue()
+                    queue.name = name
+                    exchange = q_data.get("exchange", {})
+                    queue.exchange = exchange.get("name", "") if isinstance(exchange, dict) else str(exchange)
+                    queue.routing_key = q_data.get("routing_key", "")
+                    queue.consumers = 0
+                    queue_map[name] = queue
+                queue_map[name].consumers += 1
+
+        return sorted(queue_map.values(), key=lambda q: q.name)
+    except Exception:
+        logger.debug("Failed to fetch queues from inspect", exc_info=True)
+        return []
+
+
 class QueueQuerySet:
-    """In-memory queryset-like object for queues."""
+    """In-memory queryset-like object for queues, populated from inspect()."""
 
     model = Queue
     ordered = True
     db = "default"
 
     def __init__(self, data: list[Queue] | None = None) -> None:
-        self._data = list(data) if data is not None else []
+        self._data = list(data) if data is not None else _fetch_queues()
         self.query = _FakeQuery()
 
     def _clone(self) -> QueueQuerySet:
@@ -492,8 +511,8 @@ class QueueQuerySet:
         clone = self._clone()
         for field in fields:
             bare = field.lstrip("-")
-            if bare in ("name", "pk", "messages"):
-                clone._data.sort(key=lambda q: getattr(q, bare, ""), reverse=field.startswith("-"))
+            if bare in ("name", "pk", "consumers"):
+                clone._data.sort(key=lambda q: str(getattr(q, bare, "") or ""), reverse=field.startswith("-"))
                 break
         return clone
 
@@ -508,11 +527,12 @@ class QueueQuerySet:
 
 
 class QueueAdminMixin:
-    """Shared queue list admin behaviour for default and unfold themes."""
+    """Shared queue list admin behaviour. Columns match Flower's broker page."""
 
     list_display: ClassVar[Any] = [
         "name",
-        "messages_display",
+        "exchange_display",
+        "routing_key_display",
         "consumers_display",
     ]
     list_display_links: ClassVar[Any] = ["name"]
@@ -521,7 +541,6 @@ class QueueAdminMixin:
     list_per_page: ClassVar[int] = 100
 
     def get_queryset(self, request: HttpRequest) -> QueueQuerySet:
-        # TODO: Populate from broker stats
         return QueueQuerySet()
 
     def get_search_results(
@@ -542,12 +561,144 @@ class QueueAdminMixin:
     def has_delete_permission(self, request: HttpRequest, obj: Queue | None = None) -> bool:
         return False
 
-    # Display columns
+    @admin.display(description=_("Exchange"))
+    def exchange_display(self, obj: Queue) -> str:
+        return format_html("<code>{}</code>", obj.exchange) if obj.exchange else "-"
 
-    @admin.display(description=_("Messages"))
-    def messages_display(self, obj: Queue) -> str:
-        return format_html("<code>{}</code>", obj.messages)
+    @admin.display(description=_("Routing Key"))
+    def routing_key_display(self, obj: Queue) -> str:
+        return format_html("<code>{}</code>", obj.routing_key) if obj.routing_key else "-"
 
     @admin.display(description=_("Consumers"))
     def consumers_display(self, obj: Queue) -> str:
         return format_html("<code>{}</code>", obj.consumers)
+
+
+# ======================================================================
+# RegisteredTask QuerySet + Mixin
+# ======================================================================
+
+
+def _fetch_registered_tasks() -> list[RegisteredTask]:
+    """Fetch registered task types from workers via inspect().registered()."""
+    try:
+        from django_celeryx.settings import celeryx_settings
+
+        app = get_celery_app()
+        inspector = app.control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
+        all_registered = inspector.registered() or {}
+
+        # Merge task names from all workers
+        names: set[str] = set()
+        for worker_tasks in all_registered.values():
+            names.update(worker_tasks)
+
+        # Also include local app registry (works even without workers)
+        names.update(app.tasks)
+
+        tasks = []
+        for name in sorted(names):
+            if name.startswith("celery."):
+                continue
+            task = RegisteredTask()
+            task.name = name
+            tasks.append(task)
+        return tasks
+    except Exception:
+        logger.debug("Failed to fetch registered tasks", exc_info=True)
+        return []
+
+
+class RegisteredTaskQuerySet:
+    """In-memory queryset-like object for registered task types."""
+
+    model = RegisteredTask
+    ordered = True
+    db = "default"
+
+    def __init__(self, data: list[RegisteredTask] | None = None) -> None:
+        self._data = list(data) if data is not None else _fetch_registered_tasks()
+        self.query = _FakeQuery()
+
+    def _clone(self) -> RegisteredTaskQuerySet:
+        return RegisteredTaskQuerySet(self._data)
+
+    def count(self) -> int:
+        return len(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __iter__(self) -> Iterator[RegisteredTask]:
+        return iter(self._data)
+
+    def __bool__(self) -> bool:
+        return bool(self._data)
+
+    def __getitem__(self, key: int | slice) -> RegisteredTaskQuerySet | RegisteredTask:
+        if isinstance(key, slice):
+            return RegisteredTaskQuerySet(self._data[key])
+        return self._data[key]
+
+    def filter(self, *args: Any, **kwargs: Any) -> RegisteredTaskQuerySet:
+        clone = self._clone()
+        if "pk__in" in kwargs:
+            names = set(kwargs["pk__in"])
+            clone._data = [t for t in clone._data if t.pk in names]
+        return clone
+
+    def order_by(self, *fields: str) -> RegisteredTaskQuerySet:
+        return self._clone()
+
+    def select_related(self, *args: Any) -> RegisteredTaskQuerySet:
+        return self._clone()
+
+    def distinct(self) -> RegisteredTaskQuerySet:
+        return self._clone()
+
+    def alias(self, **kwargs: Any) -> RegisteredTaskQuerySet:
+        return self._clone()
+
+
+class RegisteredTaskAdminMixin:
+    """Admin mixin for registered task types. Click links to filtered task list."""
+
+    list_display: ClassVar[Any] = [
+        "name",
+        "tasks_link",
+    ]
+    list_display_links: ClassVar[Any] = ["name"]
+    search_fields: ClassVar[Any] = ["name"]
+    ordering: ClassVar[Any] = ["name"]
+    list_per_page: ClassVar[int] = 200
+
+    def get_queryset(self, request: HttpRequest) -> RegisteredTaskQuerySet:
+        return RegisteredTaskQuerySet()
+
+    def get_search_results(
+        self,
+        request: HttpRequest,
+        queryset: RegisteredTaskQuerySet,
+        search_term: str,
+    ) -> tuple[RegisteredTaskQuerySet, bool]:
+        if not search_term:
+            return queryset, False
+        term = search_term.lower()
+        filtered = [t for t in queryset if term in t.name.lower()]
+        return RegisteredTaskQuerySet(filtered), False
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: RegisteredTask | None = None) -> bool:
+        return False
+
+    def has_change_permission(self, request: HttpRequest, obj: RegisteredTask | None = None) -> bool:
+        return False
+
+    @admin.display(description=_("Tasks"))
+    def tasks_link(self, obj: RegisteredTask) -> str:
+        from django.urls import reverse
+
+        url = reverse("admin:django_celeryx_task_changelist") + f"?q=name:{obj.name}"
+        return format_html('<a href="{}">View Tasks &rarr;</a>', url)
