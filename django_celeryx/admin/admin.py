@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin
+from django.contrib.admin.utils import unquote
 from django.core.exceptions import PermissionDenied
 from django.urls import path
 
@@ -89,7 +90,7 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
 
         from .views.task_detail import task_detail_view
 
-        return task_detail_view(request, object_id)
+        return task_detail_view(request, unquote(object_id))
 
 
 @admin.register(Worker)
@@ -125,7 +126,7 @@ class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, _WorkerBase):  # type: igno
 
         from .views.worker_detail import worker_detail_view
 
-        return worker_detail_view(request, object_id)
+        return worker_detail_view(request, unquote(object_id))
 
 
 @admin.register(Queue)

@@ -211,25 +211,28 @@ class TaskAdminMixin:
 # ======================================================================
 
 
+def _count_task_states_per_worker(workers: list[Worker]) -> None:
+    """Count succeeded/failed/retried tasks per worker from the task store."""
+    by_hostname = {w.hostname: w for w in workers}
+    state_field_map = {"SUCCESS": "succeeded", "FAILURE": "failed", "RETRY": "retried"}
+    for task_info in task_store.all():
+        worker_obj = by_hostname.get(task_info.worker) if task_info.worker else None
+        if worker_obj is None:
+            continue
+        field = state_field_map.get(task_info.state)
+        if field:
+            setattr(worker_obj, field, (getattr(worker_obj, field) or 0) + 1)
+
+
 def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
     """Enrich worker list with data from inspect() and task store counts."""
     if not workers:
         return
 
-    # Count succeeded/failed/retried per worker from the task store
-    by_hostname = {w.hostname: w for w in workers}
-    for task_info in task_store.all():
-        worker_obj = by_hostname.get(task_info.worker) if task_info.worker else None
-        if worker_obj is None:
-            continue
-        if task_info.state == "SUCCESS":
-            worker_obj.succeeded = (worker_obj.succeeded or 0) + 1
-        elif task_info.state == "FAILURE":
-            worker_obj.failed = (worker_obj.failed or 0) + 1
-        elif task_info.state == "RETRY":
-            worker_obj.retried = (worker_obj.retried or 0) + 1
+    _count_task_states_per_worker(workers)
 
-    # Enrich with inspect() data (pool, uptime, etc.)
+    by_hostname = {w.hostname: w for w in workers}
+
     try:
         from django_celeryx.settings import celeryx_settings
 
@@ -252,14 +255,12 @@ def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
             if not worker:
                 continue
 
-            # Pool info
             pool_info = data.get("pool", {})
             impl = pool_info.get("implementation", "")
             if impl:
                 worker.pool = impl.rsplit(":", 1)[-1] if ":" in impl else impl
             worker.concurrency = pool_info.get("max-concurrency")
 
-            # Processed count (total from all task types)
             total = data.get("total", {})
             if total:
                 worker.processed = sum(total.values())
