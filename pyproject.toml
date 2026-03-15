@@ -90,6 +90,7 @@ ignore = [
   "TRY300",   # return in try block is cleaner for this pattern
   "ANN401",   # Any is correct for in-memory state and generic admin patterns
   "ARG002",   # Unused args: Django admin method signatures require specific params
+  "BLE001",   # Broad exception catching needed for broker/transport resilience
   "PLC0415",  # Dynamic imports intentional (Django lazy loading, Celery app detection)
   "SIM108",   # Ternary not always clearer
   "TD002",    # TODO author not needed

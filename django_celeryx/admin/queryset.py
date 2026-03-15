@@ -186,14 +186,20 @@ class TaskAdminMixin:
     @admin.display(description=_("Received"))
     def received_display(self, obj: Task) -> str:
         if obj.received:
-            dt = datetime.datetime.fromtimestamp(obj.received, tz=datetime.UTC)
-            return format_html("<code>{}</code>", dt.strftime("%H:%M:%S"))
+            try:
+                dt = datetime.datetime.fromtimestamp(float(obj.received), tz=datetime.UTC)
+                return format_html("<code>{}</code>", dt.strftime("%H:%M:%S"))
+            except (ValueError, TypeError, OSError):
+                return format_html("<code>{}</code>", obj.received)
         return "-"
 
     @admin.display(description=_("Runtime"))
     def runtime_display(self, obj: Task) -> str:
         if obj.runtime is not None:
-            return format_html("<code>{:.3f}s</code>", obj.runtime)
+            try:
+                return format_html("<code>{}s</code>", f"{float(obj.runtime):.3f}")
+            except (ValueError, TypeError):
+                return format_html("<code>{}</code>", obj.runtime)
         return "-"
 
 

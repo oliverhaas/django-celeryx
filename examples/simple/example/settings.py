@@ -50,3 +50,27 @@ DATABASES = {
 
 CELERY_BROKER_URL = "redis://localhost:6379/0"
 CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+
+# Enable task events so the event listener can capture them
+CELERY_WORKER_SEND_TASK_EVENTS = True
+CELERY_TASK_SEND_SENT_EVENT = True
+
+CELERYX = {
+    "CELERY_APP": "example.celery.app",
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django_celeryx": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+    },
+}
