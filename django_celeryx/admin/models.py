@@ -80,10 +80,18 @@ class Worker(models.Model):
     hostname = models.CharField(max_length=255, primary_key=True)
     status = models.CharField(max_length=50, blank=True, default="online")
     active = models.IntegerField(default=0)
-    freq = models.FloatField(default=2.0)
+    processed = models.IntegerField(null=True, blank=True)
+    pool = models.CharField(max_length=50, blank=True, default="")
+    concurrency = models.IntegerField(null=True, blank=True)
+    loadavg = models.CharField(max_length=100, blank=True, default="")
     sw_ident = models.CharField(max_length=255, blank=True, default="")
     sw_ver = models.CharField(max_length=255, blank=True, default="")
     sw_sys = models.CharField(max_length=255, blank=True, default="")
+    uptime = models.IntegerField(null=True, blank=True)
+    pid = models.IntegerField(null=True, blank=True)
+    freq = models.FloatField(default=2.0)
+    prefetch_count = models.IntegerField(null=True, blank=True)
+    last_heartbeat = models.FloatField(null=True, blank=True)
 
     class Meta:
         managed = False
@@ -102,10 +110,20 @@ class Worker(models.Model):
         worker.hostname = worker_info.hostname
         worker.status = worker_info.status
         worker.active = worker_info.active
-        worker.freq = worker_info.freq
+        worker.processed = worker_info.processed
+        worker.pool = worker_info.pool or ""
+        worker.concurrency = worker_info.concurrency
         worker.sw_ident = worker_info.sw_ident or ""
         worker.sw_ver = worker_info.sw_ver or ""
         worker.sw_sys = worker_info.sw_sys or ""
+        worker.uptime = worker_info.uptime
+        worker.pid = worker_info.pid
+        worker.freq = worker_info.freq
+        worker.prefetch_count = worker_info.prefetch_count
+        worker.last_heartbeat = worker_info.last_heartbeat
+        # Format loadavg for display
+        if worker_info.loadavg:
+            worker.loadavg = ", ".join(f"{x:.2f}" for x in worker_info.loadavg)
         return worker
 
     @property

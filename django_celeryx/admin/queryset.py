@@ -7,6 +7,7 @@ interfaces, backed by in-memory state. Same pattern as django-cachex.
 from __future__ import annotations
 
 import datetime
+import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.contrib import admin
@@ -17,6 +18,8 @@ from django_celeryx.admin.models import Queue, Task, Worker
 from django_celeryx.state.tasks import task_store
 from django_celeryx.state.workers import worker_store
 from django_celeryx.types import TASK_STATE_COLORS, WORKER_STATUS_COLORS, TaskState, WorkerStatus
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -208,6 +211,66 @@ class TaskAdminMixin:
 # ======================================================================
 
 
+def _enrich_workers_from_inspect(workers: list[Worker]) -> None:
+    """Enrich worker list with data from celery.control.inspect()."""
+    if not workers:
+        return
+
+    try:
+        from django_celeryx.settings import celeryx_settings
+
+        celery_app = None
+        if celeryx_settings.CELERY_APP:
+            from importlib import import_module
+
+            module_path, attr = celeryx_settings.CELERY_APP.rsplit(".", 1)
+            module = import_module(module_path)
+            celery_app = getattr(module, attr)
+        else:
+            from celery import current_app
+            celery_app = current_app
+
+        inspector = celery_app.control.inspect(timeout=celeryx_settings.INSPECT_TIMEOUT)
+        stats = inspector.stats() or {}
+
+        by_hostname = {w.hostname: w for w in workers}
+
+        for hostname, data in stats.items():
+            worker = by_hostname.get(hostname)
+            if not worker:
+                continue
+
+            # Pool info
+            pool_info = data.get("pool", {})
+            impl = pool_info.get("implementation", "")
+            if impl:
+                worker.pool = impl.rsplit(":", 1)[-1] if ":" in impl else impl
+            worker.concurrency = pool_info.get("max-concurrency")
+
+            # Processed count
+            total = data.get("total", {})
+            if total:
+                worker.processed = sum(total.values())
+
+            # Other fields
+            worker.pid = data.get("pid")
+            worker.uptime = data.get("uptime")
+            worker.prefetch_count = data.get("prefetch_count")
+
+            # Update the store too
+            worker_store.update(
+                hostname,
+                pool=worker.pool,
+                concurrency=worker.concurrency,
+                processed=worker.processed,
+                pid=worker.pid,
+                uptime=worker.uptime,
+                prefetch_count=worker.prefetch_count,
+            )
+    except Exception:
+        logger.debug("Failed to enrich workers from inspect", exc_info=True)
+
+
 class WorkerQuerySet:
     """In-memory queryset-like object backed by WorkerStore."""
 
@@ -215,15 +278,17 @@ class WorkerQuerySet:
     ordered = True
     db = "default"
 
-    def __init__(self, data: list[Worker] | None = None) -> None:
+    def __init__(self, data: list[Worker] | None = None, *, enriched: bool = False) -> None:
         if data is None:
             self._data = [Worker.from_worker_info(w) for w in worker_store.all()]
+            if not enriched:
+                _enrich_workers_from_inspect(self._data)
         else:
             self._data = list(data)
         self.query = _FakeQuery()
 
     def _clone(self) -> WorkerQuerySet:
-        return WorkerQuerySet(self._data)
+        return WorkerQuerySet(self._data, enriched=True)
 
     def count(self) -> int:
         return len(self._data)
@@ -239,7 +304,7 @@ class WorkerQuerySet:
 
     def __getitem__(self, key: int | slice) -> WorkerQuerySet | Worker:
         if isinstance(key, slice):
-            return WorkerQuerySet(self._data[key])
+            return WorkerQuerySet(self._data[key], enriched=True)
         return self._data[key]
 
     def filter(self, *args: Any, **kwargs: Any) -> WorkerQuerySet:
@@ -253,8 +318,8 @@ class WorkerQuerySet:
         clone = self._clone()
         for field in fields:
             bare = field.lstrip("-")
-            if bare in ("hostname", "pk", "status"):
-                clone._data.sort(key=lambda w: getattr(w, bare, ""), reverse=field.startswith("-"))
+            if bare in ("hostname", "pk", "status", "active", "processed", "concurrency"):
+                clone._data.sort(key=lambda w: str(getattr(w, bare, "") or ""), reverse=field.startswith("-"))
                 break
         return clone
 
@@ -285,13 +350,21 @@ class WorkerStatusFilter(admin.SimpleListFilter):
 
 
 class WorkerAdminMixin:
-    """Shared worker list admin behaviour for default and unfold themes."""
+    """Shared worker list admin behaviour for default and unfold themes.
+
+    Columns match Flower's worker list: hostname, status, active, processed,
+    pool type, concurrency, load average, and uptime.
+    """
 
     list_display: ClassVar[Any] = [
         "hostname",
         "status_display",
         "active_display",
-        "sw_display",
+        "processed_display",
+        "pool_display",
+        "concurrency_display",
+        "loadavg_display",
+        "uptime_display",
     ]
     list_display_links: ClassVar[Any] = ["hostname"]
     list_filter: ClassVar[Any] = [WorkerStatusFilter]
@@ -312,7 +385,7 @@ class WorkerAdminMixin:
             return queryset, False
         term = search_term.lower()
         filtered = [w for w in queryset if term in w.hostname.lower()]
-        return WorkerQuerySet(filtered), False
+        return WorkerQuerySet(filtered, enriched=True), False
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -332,14 +405,51 @@ class WorkerAdminMixin:
             obj.status,
         )
 
-    @admin.display(description=_("Active Tasks"))
+    @admin.display(description=_("Active"))
     def active_display(self, obj: Worker) -> str:
         return format_html("<code>{}</code>", obj.active)
 
-    @admin.display(description=_("Software"))
-    def sw_display(self, obj: Worker) -> str:
-        if obj.sw_ident and obj.sw_ver:
-            return format_html("<code>{} {}</code>", obj.sw_ident, obj.sw_ver)
+    @admin.display(description=_("Processed"))
+    def processed_display(self, obj: Worker) -> str:
+        if obj.processed is not None:
+            return format_html("<code>{}</code>", obj.processed)
+        return "-"
+
+    @admin.display(description=_("Pool"))
+    def pool_display(self, obj: Worker) -> str:
+        if obj.pool:
+            return format_html("<code>{}</code>", obj.pool)
+        return "-"
+
+    @admin.display(description=_("Concurrency"))
+    def concurrency_display(self, obj: Worker) -> str:
+        if obj.concurrency is not None:
+            return format_html("<code>{}</code>", obj.concurrency)
+        return "-"
+
+    @admin.display(description=_("Load Average"))
+    def loadavg_display(self, obj: Worker) -> str:
+        if obj.loadavg:
+            return format_html("<code>{}</code>", obj.loadavg)
+        return "-"
+
+    @admin.display(description=_("Uptime"))
+    def uptime_display(self, obj: Worker) -> str:
+        if obj.uptime is not None:
+            # Format uptime as human-readable duration
+            seconds = int(obj.uptime)
+            if seconds < 60:
+                return format_html("<code>{}s</code>", seconds)
+            minutes = seconds // 60
+            if minutes < 60:
+                return format_html("<code>{}m</code>", minutes)
+            hours = minutes // 60
+            remaining_minutes = minutes % 60
+            if hours < 24:
+                return format_html("<code>{}h {}m</code>", hours, remaining_minutes)
+            days = hours // 24
+            remaining_hours = hours % 24
+            return format_html("<code>{}d {}h</code>", days, remaining_hours)
         return "-"
 
 

@@ -24,7 +24,14 @@ class WorkerInfo:
     sw_ver: str | None = None
     sw_sys: str | None = None
     last_heartbeat: float | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
+
+    # Fields populated via inspect() on demand
+    processed: int | None = None
+    pool: str | None = None
+    concurrency: int | None = None
+    pid: int | None = None
+    uptime: int | None = None
+    prefetch_count: int | None = None
 
 
 class WorkerStore:
