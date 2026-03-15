@@ -12,6 +12,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.sessions",
+    "django.contrib.staticfiles",
     "django_celeryx.admin",
     "example.apps.ExampleConfig",
 ]
@@ -48,6 +49,8 @@ DATABASES = {
         "NAME": os.path.join(os.path.dirname(os.path.dirname(__file__)), "db.sqlite3"),
     },
 }
+
+STATIC_URL = "static/"
 
 CELERY_BROKER_URL = "redis://localhost:6379/0"
 CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
