@@ -19,26 +19,14 @@
 
 {% block content %}
 <div id="content-main">
+    {% if can_revoke %}
+    <form id="revoke-form" method="post" style="display:none;">{% csrf_token %}<input type="hidden" name="action" value="revoke"></form>
+    <form id="terminate-form" method="post" style="display:none;">{% csrf_token %}<input type="hidden" name="action" value="terminate"></form>
+    {% endif %}
     <ul class="object-tools">
         {% if can_revoke %}
-        <li>
-            <form method="post" style="display:inline;">{% csrf_token %}
-                <input type="hidden" name="action" value="terminate">
-                <button type="submit" onclick="return confirm('Terminate this task?');"
-                    style="background:none; border:none; color:var(--link-fg); cursor:pointer; padding:0; font:inherit;">
-                    {% translate "Terminate" %}
-                </button>
-            </form>
-        </li>
-        <li>
-            <form method="post" style="display:inline;">{% csrf_token %}
-                <input type="hidden" name="action" value="revoke">
-                <button type="submit" onclick="return confirm('Revoke this task?');"
-                    style="background:none; border:none; color:var(--link-fg); cursor:pointer; padding:0; font:inherit;">
-                    {% translate "Revoke" %}
-                </button>
-            </form>
-        </li>
+        <li><a href="#" onclick="if(confirm('Terminate this task?')) document.getElementById('terminate-form').submit(); return false;">{% translate "Terminate" %}</a></li>
+        <li><a href="#" onclick="if(confirm('Revoke this task?')) document.getElementById('revoke-form').submit(); return false;">{% translate "Revoke" %}</a></li>
         {% endif %}
         <li><a href="{% url 'admin:django_celeryx_task_changelist' %}">{% translate "All Tasks" %}</a></li>
     </ul>

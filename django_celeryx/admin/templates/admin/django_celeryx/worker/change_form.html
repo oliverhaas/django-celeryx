@@ -4,6 +4,18 @@
 {% block extrastyle %}
 {{ block.super }}
 <link rel="stylesheet" href="{% static "admin/css/forms.css" %}">
+<style>
+    .celeryx-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 10px; }
+    .celeryx-controls form { display: inline-flex; gap: 4px; align-items: center; }
+    .celeryx-controls input[type="number"],
+    .celeryx-controls input[type="text"] { padding: 5px 6px; border: 1px solid var(--border-color); border-radius: 4px; }
+    .celeryx-controls input[type="number"] { width: 60px; }
+    .celeryx-controls input[type="text"] { width: 160px; }
+    .celeryx-controls .button { padding: 6px 10px; box-sizing: border-box; vertical-align: middle; }
+    .celeryx-controls select { padding: 5px 6px; border: 1px solid var(--border-color); border-radius: 4px; }
+    .celeryx-danger { background: var(--delete-button-bg); color: var(--button-fg); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    .celeryx-danger:hover { background: var(--delete-button-hover-bg); }
+</style>
 {% endblock %}
 
 {% block bodyclass %}{{ block.super }} app-django_celeryx model-worker change-form{% endblock %}
@@ -19,7 +31,6 @@
 
 {% block content %}
 <div id="content-main">
-    {# Tab navigation using object-tools links #}
     <ul class="object-tools">
         {% for tab in tabs %}
         <li>
@@ -33,95 +44,73 @@
     {% if not worker %}
     <fieldset class="module aligned">
         <h2>{% translate 'Worker Not Found' %}</h2>
-        <div class="form-row">
-            <p>{% translate 'No data available for worker' %} <code>{{ hostname }}</code>.</p>
-        </div>
+        <div class="form-row"><p>{% translate 'No data available for worker' %} <code>{{ hostname }}</code>.</p></div>
     </fieldset>
 
     {% elif current_tab == "pool" %}
-    {# ===== POOL TAB ===== #}
     <fieldset class="module aligned">
         <h2>{% translate 'Pool' %}</h2>
-        <div class="form-row">
-            <div><label>{% translate 'Type' %}:</label> <code>{{ pool_type|default:"-" }}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Concurrency' %}:</label> <code>{{ pool_concurrency|default:"-" }}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Max Tasks Per Child' %}:</label> <code>{{ pool_max_tasks_per_child|default:"-" }}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Prefetch Count' %}:</label> <code>{{ prefetch_count|default:"-" }}</code></div>
-        </div>
+        <div class="form-row"><div><label>{% translate 'Type' %}:</label> <code>{{ pool_type|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Concurrency' %}:</label> <code>{{ pool_concurrency|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Max Tasks Per Child' %}:</label> <code>{{ pool_max_tasks_per_child|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Prefetch Count' %}:</label> <code>{{ prefetch_count|default:"-" }}</code></div></div>
         {% if pool_processes %}
-        <div class="form-row">
-            <div>
-                <label>{% translate 'Processes' %}:</label>
-                <code>{% for pid in pool_processes %}{{ pid }}{% if not forloop.last %}, {% endif %}{% endfor %}</code>
-            </div>
-        </div>
+        <div class="form-row"><div><label>{% translate 'Processes' %}:</label> <code>{% for pid in pool_processes %}{{ pid }}{% if not forloop.last %}, {% endif %}{% endfor %}</code></div></div>
         {% endif %}
         {% if pool_timeouts %}
-        <div class="form-row">
-            <div><label>{% translate 'Timeouts' %}:</label> <code>{{ pool_timeouts }}</code></div>
-        </div>
+        <div class="form-row"><div><label>{% translate 'Timeouts' %}:</label> <code>{{ pool_timeouts }}</code></div></div>
         {% endif %}
     </fieldset>
 
     <fieldset class="module aligned">
         <h2>{% translate 'Pool Controls' %}</h2>
-        <div class="form-row" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+        <div class="celeryx-controls">
+            <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="pool_grow">
                 <label>{% translate 'Grow' %}:</label>
-                <input type="number" name="n" value="1" min="1" max="10" style="width:50px;">
-                <input type="submit" value="{% translate 'Grow' %}" class="default">
+                <input type="number" name="n" value="1" min="1" max="10">
+                <input type="submit" value="{% translate 'Grow' %}" class="button default">
             </form>
-            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+            <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="pool_shrink">
                 <label>{% translate 'Shrink' %}:</label>
-                <input type="number" name="n" value="1" min="1" max="10" style="width:50px;">
-                <input type="submit" value="{% translate 'Shrink' %}" class="default">
+                <input type="number" name="n" value="1" min="1" max="10">
+                <input type="submit" value="{% translate 'Shrink' %}" class="button default">
             </form>
-            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+            <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="autoscale">
                 <label>{% translate 'Autoscale' %}:</label>
-                <input type="number" name="min" placeholder="min" style="width:50px;">
-                <input type="number" name="max" placeholder="max" style="width:50px;">
-                <input type="submit" value="{% translate 'Set' %}" class="default">
+                <input type="number" name="min" placeholder="min">
+                <input type="number" name="max" placeholder="max">
+                <input type="submit" value="{% translate 'Set' %}" class="button default">
             </form>
         </div>
-        <div class="form-row" style="display:flex; gap:10px; margin-top:8px;">
+        <div class="celeryx-controls">
             <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="pool_restart">
-                <input type="submit" value="{% translate 'Restart Pool' %}" class="default"
+                <input type="submit" value="{% translate 'Restart Pool' %}" class="button default"
                     onclick="return confirm('Restart the worker pool?');">
             </form>
             <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="shutdown">
-                <input type="submit" value="{% translate 'Shutdown Worker' %}"
-                    style="background:#dc2626; color:white; border:none; padding:6px 12px; cursor:pointer;"
+                <input type="submit" value="{% translate 'Shutdown Worker' %}" class="celeryx-danger"
                     onclick="return confirm('Shutdown this worker? This cannot be undone.');">
             </form>
         </div>
     </fieldset>
 
     {% elif current_tab == "queues" %}
-    {# ===== QUEUES TAB ===== #}
     <fieldset class="module aligned">
         <h2>{% translate 'Active Queues' %}</h2>
         {% if queues %}
         <div class="results">
             <table id="result_list" style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Queue' %}</th>
-                        <th scope="col">{% translate 'Exchange' %}</th>
-                        <th scope="col">{% translate 'Routing Key' %}</th>
-                        <th scope="col">{% translate 'Durable' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr>
+                    <th scope="col">{% translate 'Queue' %}</th>
+                    <th scope="col">{% translate 'Exchange' %}</th>
+                    <th scope="col">{% translate 'Routing Key' %}</th>
+                    <th scope="col">{% translate 'Durable' %}</th>
+                </tr></thead>
                 <tbody>
                     {% for q in queues %}
                     <tr class="{% cycle 'row1' 'row2' %}">
@@ -141,42 +130,33 @@
 
     <fieldset class="module aligned">
         <h2>{% translate 'Consumer Controls' %}</h2>
-        <div class="form-row" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+        <div class="celeryx-controls">
+            <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="add_consumer">
                 <label>{% translate 'Queue' %}:</label>
-                <input type="text" name="queue" placeholder="queue name" style="width:150px;">
-                <input type="submit" value="{% translate 'Add Consumer' %}" class="default">
+                <input type="text" name="queue" placeholder="queue name">
+                <input type="submit" value="{% translate 'Add Consumer' %}" class="button default">
             </form>
-            <form method="post" style="display:inline-flex; gap:4px; align-items:center;">{% csrf_token %}
+            <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="cancel_consumer">
                 <label>{% translate 'Queue' %}:</label>
-                <input type="text" name="queue" placeholder="queue name" style="width:150px;">
-                <input type="submit" value="{% translate 'Cancel Consumer' %}" class="default"
+                <input type="text" name="queue" placeholder="queue name">
+                <input type="submit" value="{% translate 'Cancel Consumer' %}" class="button default"
                     onclick="return confirm('Stop consuming from this queue?');">
             </form>
         </div>
     </fieldset>
 
     {% elif current_tab == "tasks" %}
-    {# ===== TASKS TAB ===== #}
     {% if total_processed %}
     <fieldset class="module aligned">
         <h2>{% translate 'Processed' %}</h2>
         <div class="results">
             <table id="result_list" style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Task Name' %}</th>
-                        <th scope="col">{% translate 'Count' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th scope="col">{% translate 'Task Name' %}</th><th scope="col">{% translate 'Count' %}</th></tr></thead>
                 <tbody>
                     {% for name, count in total_processed.items %}
-                    <tr class="{% cycle 'row1' 'row2' %}">
-                        <td>{{ name }}</td>
-                        <td><code>{{ count }}</code></td>
-                    </tr>
+                    <tr class="{% cycle 'row1' 'row2' %}"><td>{{ name }}</td><td><code>{{ count }}</code></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -189,14 +169,7 @@
         <h2>{% translate 'Active' %} ({{ active_tasks|length }})</h2>
         <div class="results">
             <table style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Task' %}</th>
-                        <th scope="col">{% translate 'ID' %}</th>
-                        <th scope="col">{% translate 'Args' %}</th>
-                        <th scope="col">{% translate 'Worker PID' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th scope="col">{% translate 'Task' %}</th><th scope="col">{% translate 'ID' %}</th><th scope="col">{% translate 'Args' %}</th><th scope="col">{% translate 'Worker PID' %}</th></tr></thead>
                 <tbody>
                     {% for t in active_tasks %}
                     <tr class="{% cycle 'row1' 'row2' %}">
@@ -217,13 +190,7 @@
         <h2>{% translate 'Reserved' %} ({{ reserved_tasks|length }})</h2>
         <div class="results">
             <table style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Task' %}</th>
-                        <th scope="col">{% translate 'ID' %}</th>
-                        <th scope="col">{% translate 'Args' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th scope="col">{% translate 'Task' %}</th><th scope="col">{% translate 'ID' %}</th><th scope="col">{% translate 'Args' %}</th></tr></thead>
                 <tbody>
                     {% for t in reserved_tasks %}
                     <tr class="{% cycle 'row1' 'row2' %}">
@@ -243,13 +210,7 @@
         <h2>{% translate 'Scheduled' %} ({{ scheduled_tasks|length }})</h2>
         <div class="results">
             <table style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Task' %}</th>
-                        <th scope="col">{% translate 'ID' %}</th>
-                        <th scope="col">{% translate 'ETA' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th scope="col">{% translate 'Task' %}</th><th scope="col">{% translate 'ID' %}</th><th scope="col">{% translate 'ETA' %}</th></tr></thead>
                 <tbody>
                     {% for t in scheduled_tasks %}
                     <tr class="{% cycle 'row1' 'row2' %}">
@@ -267,13 +228,7 @@
     {% if revoked_tasks %}
     <fieldset class="module aligned">
         <h2>{% translate 'Revoked' %} ({{ revoked_tasks|length }})</h2>
-        <div class="form-row">
-            <div>
-                {% for task_id in revoked_tasks %}
-                <code>{{ task_id }}</code>{% if not forloop.last %}, {% endif %}
-                {% endfor %}
-            </div>
-        </div>
+        <div class="form-row"><div>{% for task_id in revoked_tasks %}<code>{{ task_id }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
     </fieldset>
     {% endif %}
 
@@ -285,41 +240,36 @@
     {% endif %}
 
     {% elif current_tab == "limits" %}
-    {# ===== LIMITS TAB ===== #}
     <fieldset class="module aligned">
         <h2>{% translate 'Set Rate Limit' %}</h2>
-        <div class="form-row">
-            <form method="post" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">{% csrf_token %}
+        <div class="celeryx-controls">
+            <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="rate_limit">
                 <label>{% translate 'Task' %}:</label>
-                <select name="task_name" style="width:250px;">
-                    {% for name in registered_tasks %}
-                    <option value="{{ name }}">{{ name }}</option>
-                    {% endfor %}
+                <select name="task_name">
+                    {% for name in registered_tasks %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
                 </select>
                 <label>{% translate 'Rate' %}:</label>
                 <input type="text" name="rate" placeholder="e.g. 10/m" style="width:80px;">
-                <input type="submit" value="{% translate 'Set' %}" class="default">
+                <input type="submit" value="{% translate 'Set' %}" class="button default">
             </form>
         </div>
     </fieldset>
 
     <fieldset class="module aligned">
         <h2>{% translate 'Set Time Limit' %}</h2>
-        <div class="form-row">
-            <form method="post" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">{% csrf_token %}
+        <div class="celeryx-controls">
+            <form method="post">{% csrf_token %}
                 <input type="hidden" name="action" value="time_limit">
                 <label>{% translate 'Task' %}:</label>
-                <select name="task_name" style="width:250px;">
-                    {% for name in registered_tasks %}
-                    <option value="{{ name }}">{{ name }}</option>
-                    {% endfor %}
+                <select name="task_name">
+                    {% for name in registered_tasks %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
                 </select>
                 <label>{% translate 'Soft' %}:</label>
-                <input type="number" name="soft" placeholder="seconds" style="width:80px;">
+                <input type="number" name="soft" placeholder="sec">
                 <label>{% translate 'Hard' %}:</label>
-                <input type="number" name="hard" placeholder="seconds" style="width:80px;">
-                <input type="submit" value="{% translate 'Set' %}" class="default">
+                <input type="number" name="hard" placeholder="sec">
+                <input type="submit" value="{% translate 'Set' %}" class="button default">
             </form>
         </div>
     </fieldset>
@@ -329,16 +279,10 @@
         <h2>{% translate 'Registered Tasks' %} ({{ registered_tasks|length }})</h2>
         <div class="results">
             <table style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Task Name' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th scope="col">{% translate 'Task Name' %}</th></tr></thead>
                 <tbody>
                     {% for name in registered_tasks %}
-                    <tr class="{% cycle 'row1' 'row2' %}">
-                        <td>{{ name }}</td>
-                    </tr>
+                    <tr class="{% cycle 'row1' 'row2' %}"><td>{{ name }}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -347,24 +291,15 @@
     {% endif %}
 
     {% elif current_tab == "config" %}
-    {# ===== CONFIG TAB ===== #}
     <fieldset class="module aligned">
         <h2>{% translate 'Configuration' %} ({{ conf_items|length }} {% translate 'settings' %})</h2>
         {% if conf_items %}
         <div class="results">
             <table id="result_list" style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Setting' %}</th>
-                        <th scope="col">{% translate 'Value' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th scope="col">{% translate 'Setting' %}</th><th scope="col">{% translate 'Value' %}</th></tr></thead>
                 <tbody>
                     {% for key, value in conf_items %}
-                    <tr class="{% cycle 'row1' 'row2' %}">
-                        <td><code>{{ key }}</code></td>
-                        <td><code>{{ value }}</code></td>
-                    </tr>
+                    <tr class="{% cycle 'row1' 'row2' %}"><td><code>{{ key }}</code></td><td><code>{{ value }}</code></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -375,18 +310,11 @@
     </fieldset>
 
     {% elif current_tab == "stats" %}
-    {# ===== STATS TAB ===== #}
     <fieldset class="module aligned">
         <h2>{% translate 'Worker' %}</h2>
-        <div class="form-row">
-            <div><label>{% translate 'PID' %}:</label> <code>{{ pid|default:"-" }}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Uptime' %}:</label> <code>{{ uptime|default:"-" }}{% if uptime %}s{% endif %}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Clock' %}:</label> <code>{{ clock|default:"-" }}</code></div>
-        </div>
+        <div class="form-row"><div><label>{% translate 'PID' %}:</label> <code>{{ pid|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Uptime' %}:</label> <code>{{ uptime|default:"-" }}{% if uptime %}s{% endif %}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Clock' %}:</label> <code>{{ clock|default:"-" }}</code></div></div>
     </fieldset>
 
     {% if rusage %}
@@ -394,18 +322,10 @@
         <h2>{% translate 'Resource Usage' %}</h2>
         <div class="results">
             <table id="result_list" style="width:100%;">
-                <thead>
-                    <tr>
-                        <th scope="col">{% translate 'Metric' %}</th>
-                        <th scope="col">{% translate 'Value' %}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th scope="col">{% translate 'Metric' %}</th><th scope="col">{% translate 'Value' %}</th></tr></thead>
                 <tbody>
                     {% for key, value in rusage.items %}
-                    <tr class="{% cycle 'row1' 'row2' %}">
-                        <td><code>{{ key }}</code></td>
-                        <td><code>{{ value }}</code></td>
-                    </tr>
+                    <tr class="{% cycle 'row1' 'row2' %}"><td><code>{{ key }}</code></td><td><code>{{ value }}</code></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -416,18 +336,10 @@
     {% if broker_info %}
     <fieldset class="module aligned">
         <h2>{% translate 'Broker' %}</h2>
-        <div class="form-row">
-            <div><label>{% translate 'Transport' %}:</label> <code>{{ broker_info.transport|default:"-" }}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Hostname' %}:</label> <code>{{ broker_info.hostname|default:"-" }}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Port' %}:</label> <code>{{ broker_info.port|default:"-" }}</code></div>
-        </div>
-        <div class="form-row">
-            <div><label>{% translate 'Virtual Host' %}:</label> <code>{{ broker_info.virtual_host|default:"-" }}</code></div>
-        </div>
+        <div class="form-row"><div><label>{% translate 'Transport' %}:</label> <code>{{ broker_info.transport|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Hostname' %}:</label> <code>{{ broker_info.hostname|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Port' %}:</label> <code>{{ broker_info.port|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Virtual Host' %}:</label> <code>{{ broker_info.virtual_host|default:"-" }}</code></div></div>
     </fieldset>
     {% endif %}
 
