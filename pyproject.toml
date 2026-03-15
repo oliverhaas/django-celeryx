@@ -27,9 +27,11 @@ classifiers = [
   "Topic :: System :: Monitoring",
   "Typing :: Typed",
 ]
-dependencies = ["Django>=5.2,<7", "celery>=5.4,<6"]
+dependencies = ["Django>=5.2,<7"]
 
 [project.optional-dependencies]
+celery = ["celery>=5.4,<6"]
+celery-asyncio = ["celery-asyncio>=6.0.0a1"]
 unfold = ["django-unfold>=0.70.0"]
 
 [project.urls]
@@ -41,6 +43,7 @@ Changelog = "https://oliverhaas.github.io/django-celeryx/reference/changelog/"
 [dependency-groups]
 dev = [
   "beautifulsoup4==4.14.3",
+  "celery==5.6.2",
   "django-stubs==5.2.9",
   "mypy==1.19.1",
   "pre-commit==4.5.1",

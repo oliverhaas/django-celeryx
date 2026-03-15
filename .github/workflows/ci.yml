@@ -45,11 +45,19 @@ jobs:
         django-version:
           - "5.2"
           - "6.0"
+        celery-library:
+          - "celery"
 
         include:
           # Pre-release Django
           - python-version: "3.14"
             django-version: "main"
+            celery-library: "celery"
+
+          # celery-asyncio (requires Python 3.14)
+          - python-version: "3.14"
+            django-version: "6.0"
+            celery-library: "celery-asyncio"
 
     steps:
       - uses: actions/checkout@v6
@@ -71,11 +79,16 @@ jobs:
             uv pip install "Django~=${{ matrix.django-version }}.0"
           fi
 
+      - name: Install celery-asyncio
+        if: matrix.celery-library == 'celery-asyncio'
+        run: |
+          uv pip install "celery-asyncio @ git+https://github.com/oliverhaas/celery-asyncio.git@main"
+
       - name: Run tests
         run: uv run pytest -n auto
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.13' && matrix.django-version == '5.2'
+        if: matrix.python-version == '3.13' && matrix.django-version == '5.2' && matrix.celery-library == 'celery'
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
