@@ -567,7 +567,7 @@ class QueueAdminMixin:
         "routing_key_display",
         "consumers_display",
     ]
-    list_display_links: ClassVar[Any] = ["name"]
+    list_display_links: ClassVar[Any] = None  # No detail page — Flower doesn't have one either
     search_fields: ClassVar[Any] = ["name"]
     ordering: ClassVar[Any] = ["name"]
     list_per_page: ClassVar[int] = 100

@@ -8,4 +8,4 @@ Worker/task list views should match Flower's columns and layout exactly, just re
 
 **Why:** The user wants feature parity with Flower, not a reimagined version. The value proposition is "Flower but embedded in Django admin", not a different monitoring tool.
 
-**How to apply:** When implementing any view (list or detail), first check what Flower shows for that exact page, then replicate those columns/fields/layout. Only deviate when there's a strong reason.
+**How to apply:** When implementing any view (list or detail), first check what Flower shows for that exact page, then replicate those columns/fields/layout. Only deviate when there's a strong reason. For UX patterns, follow Django admin conventions (e.g. sidebar filters, not custom search syntax).
