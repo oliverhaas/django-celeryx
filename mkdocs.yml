@@ -1,0 +1,65 @@
+site_name: Django CeleryX
+site_description: Celery monitoring and management for Django admin
+site_url: https://oliverhaas.github.io/django-celeryx/
+repo_url: https://github.com/oliverhaas/django-celeryx
+repo_name: oliverhaas/django-celeryx
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra:
+  version:
+    provider: mike
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - User Guide:
+      - Configuration: user-guide/configuration.md
+      - Dashboard: user-guide/dashboard.md
+      - Tasks: user-guide/tasks.md
+      - Workers: user-guide/workers.md
+      - Broker: user-guide/broker.md
+  - Reference:
+      - API: reference/api.md
+      - Changelog: reference/changelog.md
