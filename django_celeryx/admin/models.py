@@ -190,3 +190,7 @@ class RegisteredTask(models.Model):
     @pk.setter
     def pk(self, value: str) -> None:  # type: ignore[return]
         self.name = value
+
+
+# Import managed DB models so Django discovers them for migrations
+from django_celeryx.db_models import TaskEvent, WorkerEvent  # noqa: E402, F401

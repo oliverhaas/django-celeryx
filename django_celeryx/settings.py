@@ -8,18 +8,40 @@ from typing import Any
 
 @dataclass
 class CeleryXSettings:
-    """Settings for django-celeryx with sensible defaults."""
+    """Settings for django-celeryx with sensible defaults.
 
-    # State limits
+    All settings are configured via the CELERYX dict in Django settings::
+
+        CELERYX = {
+            "CELERY_APP": "myproject.celery.app",
+            "DATABASE": "default",  # or a dedicated DB alias
+            ...
+        }
+    """
+
+    # Celery app
+    CELERY_APP: str | None = None
+
+    # Database for persisting event data.
+    # None = in-memory only (no persistence across restarts).
+    # Set to a Django DATABASES alias (e.g. "default", "celeryx") to persist.
+    DATABASE: str | None = None
+
+    # Maximum age of stored events in seconds (default 24h). Events older than
+    # this are cleaned up periodically. Only applies when DATABASE is set.
+    MAX_EVENT_AGE: int = 86400
+
+    # Admin / event listener
+    ADMIN_ENABLED: bool = True
+    EVENT_LISTENER_AUTOSTART: bool = True
+    ENABLE_EVENTS: bool = True
+
+    # State limits (in-memory ring buffers)
     MAX_TASKS: int = 100_000
     MAX_WORKERS: int = 5_000
 
-    # Event listener
-    ENABLE_EVENTS: bool = True
-    EVENT_LISTENER_AUTOSTART: bool = True
-
-    # Stream replay on restart
-    STREAM_REPLAY_DEPTH: int = 10_000
+    # Worker inspection
+    INSPECT_TIMEOUT: float = 1.0
 
     # UI
     AUTO_REFRESH_INTERVAL: int = 3
@@ -35,12 +57,6 @@ class CeleryXSettings:
         ],
     )
     NATURAL_TIME: bool = False
-
-    # Worker inspection
-    INSPECT_TIMEOUT: float = 1.0
-
-    # Celery app
-    CELERY_APP: str | None = None
 
 
 def _get_settings() -> CeleryXSettings:

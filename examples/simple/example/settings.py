@@ -61,7 +61,10 @@ CELERY_TASK_SEND_SENT_EVENT = True
 
 CELERYX = {
     "CELERY_APP": "example.celery.app",
+    "DATABASE": "default",  # Persist events to the default database
 }
+
+DATABASE_ROUTERS = ["django_celeryx.db_router.CeleryXRouter"]
 
 LOGGING = {
     "version": 1,

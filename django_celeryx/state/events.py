@@ -91,6 +91,14 @@ def _handle_task_event(event: dict) -> None:
 
     task_store.update(uuid, **fields)
 
+    # Persist to DB (retried → retried_at for DB field name)
+    from django_celeryx.state.persistence import persist_task_event
+
+    db_fields = dict(fields)
+    if "retried" in db_fields:
+        db_fields["retried_at"] = db_fields.pop("retried")
+    persist_task_event(uuid, **db_fields)
+
 
 def _handle_worker_event(event: dict) -> None:
     """Update WorkerStore from a worker event."""
@@ -116,6 +124,10 @@ def _handle_worker_event(event: dict) -> None:
             fields["last_heartbeat"] = event["timestamp"]
 
     worker_store.update(hostname, **fields)
+
+    from django_celeryx.state.persistence import persist_worker_event
+
+    persist_worker_event(hostname, **fields)
 
 
 class EventListener(threading.Thread):
@@ -158,27 +170,41 @@ class EventListener(threading.Thread):
             handlers[event_type] = _handle_worker_event
 
         last_enable_events = 0.0
+        last_cleanup = time.monotonic()
 
         with app.connection() as connection:
             recv = app.events.Receiver(connection, handlers=handlers)
             recv.should_stop = False
             logger.info("CeleryX event listener connected, consuming events")
 
-            # Use consume() which handles socket.timeout internally for heartbeats.
-            # It yields after each event is processed. We loop indefinitely until stopped.
             for _ in recv.consume(limit=None, timeout=None):
                 if self._stop_event.is_set():
                     recv.should_stop = True
                     break
 
-                # Periodically broadcast enable_events
                 now = time.monotonic()
+
+                # Periodically broadcast enable_events
                 if now - last_enable_events > _ENABLE_EVENTS_INTERVAL:
                     try:
                         app.control.enable_events()
                     except Exception:
                         logger.debug("Failed to broadcast enable_events", exc_info=True)
                     last_enable_events = now
+
+                # Periodically clean up old persisted events
+                if now - last_cleanup > _CLEANUP_INTERVAL:
+                    try:
+                        from django_celeryx.state.persistence import cleanup_old_events
+
+                        cleanup_old_events()
+                    except Exception:
+                        logger.debug("Failed to run cleanup", exc_info=True)
+                    last_cleanup = now
+
+
+# Run cleanup every hour
+_CLEANUP_INTERVAL = 3600.0
 
 
 def start_event_listener() -> None:
