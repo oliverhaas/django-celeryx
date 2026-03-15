@@ -13,8 +13,8 @@ from django.db import models
 class TaskEvent(models.Model):
     """Persisted task event data, written by the event listener."""
 
-    uuid = models.CharField(max_length=255, db_index=True)
-    name = models.CharField(max_length=500, blank=True, default="")
+    uuid = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=500, blank=True, default="", db_index=True)
     state = models.CharField(max_length=50, db_index=True)
     worker = models.CharField(max_length=255, blank=True, default="", db_index=True)
     args = models.TextField(blank=True, default="")
@@ -45,8 +45,9 @@ class TaskEvent(models.Model):
     class Meta:
         app_label = "django_celeryx"
         indexes = [  # noqa: RUF012
-            models.Index(fields=["uuid"], name="celeryx_task_uuid_idx"),
             models.Index(fields=["-updated_at"], name="celeryx_task_updated_idx"),
+            models.Index(fields=["worker", "state"], name="celeryx_task_worker_state_idx"),
+            models.Index(fields=["name", "state"], name="celeryx_task_name_state_idx"),
         ]
 
     def __str__(self) -> str:
