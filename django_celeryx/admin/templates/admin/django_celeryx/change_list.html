@@ -1,0 +1,92 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="https://unpkg.com/htmx.org@2.0.4"
+          integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/idiomorph@0.7.3/dist/idiomorph-ext.min.js"></script>
+  <style>
+    .celeryx-live-toggle a {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none !important;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .celeryx-live-toggle a.live-off {
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+    .celeryx-live-toggle a.live-off:hover {
+      background: #dcfce7;
+      color: #15803d;
+      border-color: #86efac;
+    }
+    .celeryx-live-toggle a.live-on {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #86efac;
+    }
+    .celeryx-live-toggle a.live-on:hover {
+      background: #fee2e2;
+      color: #dc2626;
+      border-color: #fca5a5;
+    }
+    .celeryx-live-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .celeryx-live-dot.on {
+      background: #22c55e;
+      animation: celeryx-pulse 2s infinite;
+    }
+    .celeryx-live-dot.off {
+      background: #9ca3af;
+    }
+    @keyframes celeryx-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  </style>
+{% endblock %}
+
+{% block object-tools-items %}
+  <li class="celeryx-live-toggle">
+    {% if live %}
+      <a href="{{ live_toggle_url }}" class="live-on" title="{% translate 'Disable auto-refresh' %}">
+        <span class="celeryx-live-dot on"></span> {% translate "Live" %}
+      </a>
+    {% else %}
+      <a href="{{ live_toggle_url }}" class="live-off" title="{% translate 'Enable auto-refresh' %}">
+        <span class="celeryx-live-dot off"></span> {% translate "Live" %}
+      </a>
+    {% endif %}
+  </li>
+{% endblock %}
+
+{% block result_list %}
+  {% if live %}
+    <div hx-get="{{ live_url }}"
+         hx-trigger="every {{ refresh_interval }}s"
+         hx-select="#result_list"
+         hx-target="#result_list"
+         hx-swap="morph"
+         hx-ext="morph">
+  {% endif %}
+
+  {{ block.super }}
+
+  {% if live %}
+    </div>
+  {% endif %}
+{% endblock %}

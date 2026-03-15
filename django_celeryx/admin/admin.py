@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin
 
@@ -10,7 +10,7 @@ from .models import Queue, Task, Worker
 from .queryset import QueueAdminMixin, TaskAdminMixin, WorkerAdminMixin
 
 if TYPE_CHECKING:
-    from django.http import HttpRequest
+    from django.http import HttpRequest, HttpResponse
 
     _TaskBase = admin.ModelAdmin[Task]
     _WorkerBase = admin.ModelAdmin[Worker]
@@ -21,15 +21,47 @@ else:
     _QueueBase = admin.ModelAdmin
 
 
+class LiveUpdateMixin:
+    """Mixin that adds htmx live update toggle to changelist views."""
+
+    change_list_template = "admin/django_celeryx/change_list.html"
+
+    def changelist_view(
+        self,
+        request: HttpRequest,
+        extra_context: dict[str, Any] | None = None,
+    ) -> HttpResponse:
+        from django_celeryx.settings import celeryx_settings
+
+        extra_context = extra_context or {}
+
+        live = request.GET.get("live") == "on"
+        extra_context["live"] = live
+        extra_context["refresh_interval"] = celeryx_settings.AUTO_REFRESH_INTERVAL
+
+        # Build toggle URL: add or remove ?live=on, preserving other params
+        params = request.GET.copy()
+        if live:
+            params.pop("live", None)
+        else:
+            params["live"] = "on"
+        toggle_qs = params.urlencode()
+        extra_context["live_toggle_url"] = f"?{toggle_qs}" if toggle_qs else "?"
+
+        # Build the URL htmx will poll (same page with all current params)
+        extra_context["live_url"] = request.get_full_path()
+
+        return super().changelist_view(request, extra_context)  # type: ignore[misc]
+
+
 @admin.register(Task)
-class TaskAdmin(TaskAdminMixin, _TaskBase):  # type: ignore[misc]
+class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[misc]
     """Admin for Celery tasks.
 
     Uses TaskAdminMixin for list_display, filtering, search.
     Driven by TaskQuerySet (in-memory, backed by TaskStore).
     """
 
-    # Tasks are events — add/delete don't apply
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
 
@@ -38,7 +70,7 @@ class TaskAdmin(TaskAdminMixin, _TaskBase):  # type: ignore[misc]
 
 
 @admin.register(Worker)
-class WorkerAdmin(WorkerAdminMixin, _WorkerBase):  # type: ignore[misc]
+class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, _WorkerBase):  # type: ignore[misc]
     """Admin for Celery workers.
 
     Uses WorkerAdminMixin for list_display, filtering, search.
@@ -53,7 +85,7 @@ class WorkerAdmin(WorkerAdminMixin, _WorkerBase):  # type: ignore[misc]
 
 
 @admin.register(Queue)
-class QueueAdmin(QueueAdminMixin, _QueueBase):  # type: ignore[misc]
+class QueueAdmin(LiveUpdateMixin, QueueAdminMixin, _QueueBase):  # type: ignore[misc]
     """Admin for Celery queues.
 
     Uses QueueAdminMixin for list_display, filtering, search.
