@@ -32,6 +32,31 @@ def _get_db() -> str:
     return get_db_alias()
 
 
+def _format_timestamp(ts: float | None) -> str:
+    """Format an epoch timestamp for display, respecting NATURAL_TIME setting."""
+    if not ts:
+        return "-"
+    try:
+        from django_celeryx.settings import celeryx_settings
+
+        dt = datetime.datetime.fromtimestamp(float(ts), tz=datetime.UTC)
+        if celeryx_settings.NATURAL_TIME:
+            delta = datetime.datetime.now(tz=datetime.UTC) - dt
+            seconds = int(delta.total_seconds())
+            if seconds < 60:
+                label = f"{seconds}s ago"
+            elif seconds < 3600:
+                label = f"{seconds // 60}m ago"
+            elif seconds < 86400:
+                label = f"{seconds // 3600}h ago"
+            else:
+                label = f"{seconds // 86400}d ago"
+            return format_html('<code title="{}">{}</code>', dt.strftime("%Y-%m-%d %H:%M:%S UTC"), label)
+        return format_html("<code>{}</code>", dt.strftime("%H:%M:%S"))
+    except (ValueError, TypeError, OSError):
+        return format_html("<code>{}</code>", ts)
+
+
 class _FakeQuery:
     """Minimal query-like object for ChangeList compatibility."""
 
@@ -280,23 +305,11 @@ class TaskAdminMixin:
 
     @admin.display(description=_("Received"))
     def received_display(self, obj: Task) -> str:
-        if obj.received:
-            try:
-                dt = datetime.datetime.fromtimestamp(float(obj.received), tz=datetime.UTC)
-                return format_html("<code>{}</code>", dt.strftime("%H:%M:%S"))
-            except (ValueError, TypeError, OSError):
-                return format_html("<code>{}</code>", obj.received)
-        return "-"
+        return _format_timestamp(obj.received)
 
     @admin.display(description=_("Started"))
     def started_display(self, obj: Task) -> str:
-        if obj.started:
-            try:
-                dt = datetime.datetime.fromtimestamp(float(obj.started), tz=datetime.UTC)
-                return format_html("<code>{}</code>", dt.strftime("%H:%M:%S"))
-            except (ValueError, TypeError, OSError):
-                return format_html("<code>{}</code>", obj.started)
-        return "-"
+        return _format_timestamp(obj.started)
 
     @admin.display(description=_("Runtime"))
     def runtime_display(self, obj: Task) -> str:

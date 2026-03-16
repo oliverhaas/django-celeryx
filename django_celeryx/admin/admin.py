@@ -66,6 +66,7 @@ class LiveUpdateMixin:
 class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[misc]
     """Admin for Celery tasks."""
 
+    change_list_template = "admin/django_celeryx/task/change_list.html"  # type: ignore[misc]
     actions = ["revoke_selected", "terminate_selected"]  # noqa: RUF012
 
     def has_add_permission(self, request: HttpRequest) -> bool:
@@ -78,12 +79,32 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
         urls = super().get_urls()
         custom_urls = [
             path(
+                "apply/",
+                self.admin_site.admin_view(self._apply_task_view),
+                name="django_celeryx_task_apply",
+            ),
+            path(
+                "dashboard/",
+                self.admin_site.admin_view(self._dashboard_view),
+                name="django_celeryx_dashboard",
+            ),
+            path(
                 "<path:object_id>/change/",
                 self.admin_site.admin_view(self.change_view),
                 name="django_celeryx_task_change",
             ),
         ]
         return custom_urls + urls
+
+    def _apply_task_view(self, request: HttpRequest) -> HttpResponse:
+        from .views.apply_task import apply_task_view
+
+        return apply_task_view(request)
+
+    def _dashboard_view(self, request: HttpRequest) -> HttpResponse:
+        from .views.dashboard import dashboard_view
+
+        return dashboard_view(request)
 
     def change_view(
         self,

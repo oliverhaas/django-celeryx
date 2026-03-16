@@ -66,9 +66,21 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):  # type: ignore[mi
     def has_delete_permission(self, request: HttpRequest, obj: Task | None = None) -> bool:
         return False
 
+    change_list_template = "admin/django_celeryx/task/change_list.html"  # type: ignore[misc]
+
     def get_urls(self) -> list:
         urls = super().get_urls()
         custom_urls = [
+            path(
+                "apply/",
+                self.admin_site.admin_view(self._apply_task_view),
+                name="django_celeryx_task_apply",
+            ),
+            path(
+                "dashboard/",
+                self.admin_site.admin_view(self._dashboard_view),
+                name="django_celeryx_dashboard",
+            ),
             path(
                 "<path:object_id>/change/",
                 self.admin_site.admin_view(self.change_view),
@@ -76,6 +88,16 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):  # type: ignore[mi
             ),
         ]
         return custom_urls + urls
+
+    def _apply_task_view(self, request: HttpRequest) -> HttpResponse:
+        from django_celeryx.admin.views.apply_task import apply_task_view
+
+        return apply_task_view(request)
+
+    def _dashboard_view(self, request: HttpRequest) -> HttpResponse:
+        from django_celeryx.admin.views.dashboard import dashboard_view
+
+        return dashboard_view(request)
 
     def change_view(
         self,

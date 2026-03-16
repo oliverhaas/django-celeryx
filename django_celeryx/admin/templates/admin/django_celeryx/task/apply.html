@@ -1,0 +1,70 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static "admin/css/forms.css" %}">
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-django_celeryx model-task change-form{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='django_celeryx' %}">django-celeryx</a>
+    &rsaquo; <a href="{% url 'admin:django_celeryx_task_changelist' %}">{% translate 'Tasks' %}</a>
+    &rsaquo; {% translate 'Send Task' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <ul class="object-tools">
+        <li><a href="{% url 'admin:django_celeryx_task_changelist' %}">{% translate "All Tasks" %}</a></li>
+    </ul>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <fieldset class="module aligned">
+            <h2>{% translate 'Send Task' %}</h2>
+
+            <div class="form-row">
+                <div>
+                    <label for="id_task_name">{% translate 'Task Name' %}:</label>
+                    {% if registered_tasks %}
+                    <select id="id_task_name" name="task_name" style="min-width: 300px;">
+                        {% for name in registered_tasks %}
+                        <option value="{{ name }}"{% if name == task_name %} selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input type="text" id="id_task_name" name="task_name" value="{{ task_name }}" style="min-width: 300px;">
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="id_args">{% translate 'Arguments (JSON array)' %}:</label>
+                    <input type="text" id="id_args" name="args" placeholder='[1, 2, "hello"]' style="min-width: 400px;">
+                    <p class="help">{% translate 'Example:' %} <code>[42, "hello", true]</code></p>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="id_kwargs">{% translate 'Keyword Arguments (JSON object)' %}:</label>
+                    <input type="text" id="id_kwargs" name="kwargs" placeholder='{"key": "value"}' style="min-width: 400px;">
+                    <p class="help">{% translate 'Example:' %} <code>{"countdown": 10}</code></p>
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="submit-row">
+            <input type="submit" value="{% translate 'Send Task' %}" class="default">
+            <a role="button" href="{% url 'admin:django_celeryx_task_changelist' %}" class="closelink">{% translate 'Cancel' %}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

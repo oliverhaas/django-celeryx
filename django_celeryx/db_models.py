@@ -1,8 +1,8 @@
-"""Database-backed models for persisting Celery event data.
+"""Database-backed models for persisting Celery task and worker state.
 
 These are managed models (unlike the admin display models in admin/models.py)
-that create actual database tables for event persistence and replay.
-Only used when CELERYX["DATABASE"] is configured.
+that create actual database tables. By default an auto-configured in-memory
+SQLite database is used; set CELERYX["DATABASE"] for persistent storage.
 """
 
 from __future__ import annotations

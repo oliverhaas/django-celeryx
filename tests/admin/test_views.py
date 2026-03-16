@@ -4,7 +4,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.test import Client
+from django.test import Client, override_settings
 from django.urls import reverse
 
 from django_celeryx.db_models import TaskState, WorkerState
@@ -266,3 +266,116 @@ class TestRegisteredTaskListView:
         url = reverse("admin:django_celeryx_registeredtask_changelist")
         response = admin_client.get(url)
         assert response.status_code == 200
+
+
+@pytest.mark.django_db
+class TestApplyTaskView:
+    """Tests for the send/apply task view."""
+
+    def test_apply_form_returns_200(self, admin_client):
+        url = reverse("admin:django_celeryx_task_apply")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        assert b"Send Task" in response.content
+
+    def test_apply_requires_auth(self, db):
+        client = Client()
+        url = reverse("admin:django_celeryx_task_apply")
+        response = client.get(url)
+        assert response.status_code == 302
+
+    @patch("django_celeryx.control.tasks.apply_task")
+    def test_apply_post_sends_task(self, mock_apply, admin_client):
+        mock_apply.return_value = "abc-12345678"
+        url = reverse("admin:django_celeryx_task_apply")
+        response = admin_client.post(url, {"task_name": "my.task", "args": "[1, 2]", "kwargs": '{"x": 3}'})
+        assert response.status_code == 302
+        mock_apply.assert_called_once_with("my.task", args=(1, 2), kwargs={"x": 3})
+
+    def test_apply_post_empty_name_shows_error(self, admin_client):
+        url = reverse("admin:django_celeryx_task_apply")
+        response = admin_client.post(url, {"task_name": "", "args": "", "kwargs": ""})
+        assert response.status_code == 302
+
+    def test_apply_post_invalid_json_shows_error(self, admin_client):
+        url = reverse("admin:django_celeryx_task_apply")
+        response = admin_client.post(url, {"task_name": "my.task", "args": "not json"})
+        assert response.status_code == 302
+
+    def test_task_list_has_send_task_link(self, admin_client):
+        url = reverse("admin:django_celeryx_task_changelist")
+        response = admin_client.get(url)
+        assert b"Send Task" in response.content
+
+    def test_task_list_has_dashboard_link(self, admin_client):
+        url = reverse("admin:django_celeryx_task_changelist")
+        response = admin_client.get(url)
+        assert b"Dashboard" in response.content
+
+
+@pytest.mark.django_db
+class TestDashboardView:
+    """Tests for the dashboard view with Pygal charts."""
+
+    def test_dashboard_returns_200_empty(self, admin_client):
+        url = reverse("admin:django_celeryx_dashboard")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        assert b"Dashboard" in response.content
+
+    def test_dashboard_shows_stats(self, admin_client):
+        now = time.time()
+        TaskState.objects.create(uuid="d1", name="a.task", state="SUCCESS", runtime=0.5, updated_at=now)
+        TaskState.objects.create(uuid="d2", name="a.task", state="SUCCESS", runtime=1.5, updated_at=now)
+        TaskState.objects.create(uuid="d3", name="b.task", state="FAILURE", updated_at=now)
+
+        url = reverse("admin:django_celeryx_dashboard")
+        response = admin_client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Success Rate" in content
+        assert "66.7%" in content
+
+    def test_dashboard_has_svg_charts(self, admin_client):
+        now = time.time()
+        TaskState.objects.create(uuid="c1", name="x.task", state="SUCCESS", updated_at=now)
+        TaskState.objects.create(uuid="c2", name="x.task", state="FAILURE", updated_at=now)
+
+        url = reverse("admin:django_celeryx_dashboard")
+        response = admin_client.get(url)
+        content = response.content.decode()
+        assert "<svg" in content
+
+    def test_dashboard_requires_auth(self, db):
+        client = Client()
+        url = reverse("admin:django_celeryx_dashboard")
+        response = client.get(url)
+        assert response.status_code == 302
+
+
+@pytest.mark.django_db
+class TestNaturalTime:
+    """Tests for the NATURAL_TIME setting."""
+
+    @override_settings(CELERYX={"EVENT_LISTENER_AUTOSTART": False, "DATABASE": "default", "NATURAL_TIME": True})
+    def test_natural_time_shows_relative(self, admin_client):
+        from django_celeryx.settings import celeryx_settings
+
+        celeryx_settings.reload()
+        try:
+            now = time.time()
+            TaskState.objects.create(uuid="nt1", name="nat.task", state="SUCCESS", received=now - 120, updated_at=now)
+            url = reverse("admin:django_celeryx_task_changelist")
+            response = admin_client.get(url)
+            content = response.content.decode()
+            assert "ago" in content
+        finally:
+            celeryx_settings.reload()
+
+    def test_absolute_time_by_default(self, admin_client):
+        now = time.time()
+        TaskState.objects.create(uuid="nt2", name="abs.task", state="SUCCESS", received=now, updated_at=now)
+        url = reverse("admin:django_celeryx_task_changelist")
+        response = admin_client.get(url)
+        content = response.content.decode()
+        assert "ago" not in content or "Monitoring since" in content.split("ago")[0]

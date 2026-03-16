@@ -1,0 +1,95 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static "admin/css/forms.css" %}">
+<style>
+    .celeryx-stats { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+    .celeryx-stat {
+        background: var(--darkened-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        padding: 15px 20px;
+        min-width: 120px;
+        text-align: center;
+    }
+    .celeryx-stat-value { font-size: 24px; font-weight: bold; color: var(--body-fg); }
+    .celeryx-stat-label { font-size: 11px; color: var(--body-quiet-color); text-transform: uppercase; margin-top: 4px; }
+    .celeryx-charts { display: flex; gap: 20px; flex-wrap: wrap; }
+    .celeryx-chart {
+        background: var(--darkened-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        padding: 10px;
+        overflow: hidden;
+    }
+    .celeryx-chart svg { max-width: 100%; height: auto; }
+</style>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-django_celeryx model-task change-form{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='django_celeryx' %}">django-celeryx</a>
+    &rsaquo; {% translate 'Dashboard' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <ul class="object-tools">
+        <li><a href="{% url 'admin:django_celeryx_task_changelist' %}">{% translate "Tasks" %}</a></li>
+        <li><a href="{% url 'admin:django_celeryx_worker_changelist' %}">{% translate "Workers" %}</a></li>
+    </ul>
+
+    <div class="celeryx-stats">
+        <div class="celeryx-stat">
+            <div class="celeryx-stat-value">{{ total_tasks }}</div>
+            <div class="celeryx-stat-label">{% translate 'Total Tasks' %}</div>
+        </div>
+        <div class="celeryx-stat">
+            <div class="celeryx-stat-value" style="color: #22c55e;">{{ total_succeeded }}</div>
+            <div class="celeryx-stat-label">{% translate 'Succeeded' %}</div>
+        </div>
+        <div class="celeryx-stat">
+            <div class="celeryx-stat-value" style="color: #ef4444;">{{ total_failed }}</div>
+            <div class="celeryx-stat-label">{% translate 'Failed' %}</div>
+        </div>
+        <div class="celeryx-stat">
+            <div class="celeryx-stat-value">{{ success_rate }}</div>
+            <div class="celeryx-stat-label">{% translate 'Success Rate' %}</div>
+        </div>
+        {% if avg_runtime %}
+        <div class="celeryx-stat">
+            <div class="celeryx-stat-value">{{ avg_runtime }}</div>
+            <div class="celeryx-stat-label">{% translate 'Avg Runtime' %}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="celeryx-charts">
+        {% if state_pie_svg %}
+        <div class="celeryx-chart">
+            {{ state_pie_svg }}
+        </div>
+        {% endif %}
+
+        {% if throughput_svg %}
+        <div class="celeryx-chart" style="flex: 2;">
+            {{ throughput_svg }}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if top_tasks_svg %}
+    <div class="celeryx-charts" style="margin-top: 20px;">
+        <div class="celeryx-chart" style="flex: 1;">
+            {{ top_tasks_svg }}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
