@@ -2,42 +2,42 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/getting-started/installation/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/getting-started/quickstart/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/reference/api/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/reference/changelog/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/user-guide/broker/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/user-guide/configuration/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/user-guide/dashboard/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/user-guide/tasks/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
     <url>
          <loc>https://oliverhaas.github.io/django-celeryx/main/user-guide/workers/</loc>
-         <lastmod>2026-03-15</lastmod>
+         <lastmod>2026-03-16</lastmod>
     </url>
 </urlset>
