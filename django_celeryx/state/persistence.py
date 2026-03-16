@@ -19,45 +19,53 @@ def _get_db() -> str:
 
 
 def persist_task_event(uuid: str, **fields: object) -> None:
-    """Upsert task state in the database by uuid."""
+    """Upsert task state in the database by uuid.
+
+    Uses filter().update() for existing records (atomic, no race condition)
+    and create() for new records (with IntegrityError fallback to update).
+    """
     try:
+        from django.db import IntegrityError
+
         from django_celeryx.db_models import TaskState
 
         db = _get_db()
         now = time.time()
+        clean = {k: v for k, v in fields.items() if hasattr(TaskState, k) and v is not None and v != ""}
+        clean["updated_at"] = now
 
-        existing = TaskState.objects.using(db).filter(uuid=uuid).first()
-        if existing:
-            for k, v in fields.items():
-                if hasattr(existing, k) and v is not None and v != "":
-                    setattr(existing, k, v)
-            existing.updated_at = now
-            existing.save(using=db)
-        else:
-            clean_fields = {k: v for k, v in fields.items() if hasattr(TaskState, k)}
-            TaskState.objects.using(db).create(uuid=uuid, updated_at=now, **clean_fields)
+        updated = TaskState.objects.using(db).filter(uuid=uuid).update(**clean)
+        if not updated:
+            try:
+                TaskState.objects.using(db).create(uuid=uuid, **clean)
+            except IntegrityError:
+                TaskState.objects.using(db).filter(uuid=uuid).update(**clean)
     except Exception:
         logger.debug("Failed to persist task state %s", uuid, exc_info=True)
 
 
 def persist_worker_event(hostname: str, **fields: object) -> None:
-    """Upsert worker state in the database by hostname."""
+    """Upsert worker state in the database by hostname.
+
+    Uses filter().update() for existing records (atomic, no race condition)
+    and create() for new records (with IntegrityError fallback to update).
+    """
     try:
+        from django.db import IntegrityError
+
         from django_celeryx.db_models import WorkerState
 
         db = _get_db()
         now = time.time()
+        clean = {k: v for k, v in fields.items() if hasattr(WorkerState, k) and v is not None}
+        clean["updated_at"] = now
 
-        existing = WorkerState.objects.using(db).filter(hostname=hostname).first()
-        if existing:
-            for k, v in fields.items():
-                if hasattr(existing, k) and v is not None:
-                    setattr(existing, k, v)
-            existing.updated_at = now
-            existing.save(using=db)
-        else:
-            clean_fields = {k: v for k, v in fields.items() if hasattr(WorkerState, k)}
-            WorkerState.objects.using(db).create(hostname=hostname, updated_at=now, **clean_fields)
+        updated = WorkerState.objects.using(db).filter(hostname=hostname).update(**clean)
+        if not updated:
+            try:
+                WorkerState.objects.using(db).create(hostname=hostname, **clean)
+            except IntegrityError:
+                WorkerState.objects.using(db).filter(hostname=hostname).update(**clean)
     except Exception:
         logger.debug("Failed to persist worker state %s", hostname, exc_info=True)
 

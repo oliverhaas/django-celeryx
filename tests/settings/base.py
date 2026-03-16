@@ -52,4 +52,7 @@ CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
 # Disable event listener autostart in tests
 CELERYX = {
     "EVENT_LISTENER_AUTOSTART": False,
+    "DATABASE": "default",
 }
+
+DATABASE_ROUTERS = ["django_celeryx.db_router.CeleryXRouter"]
