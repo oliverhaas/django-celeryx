@@ -215,7 +215,7 @@
                     {% for t in scheduled_tasks %}
                     <tr class="{% cycle 'row1' 'row2' %}">
                         <td>{{ t.request.name|default:"-" }}</td>
-                        <td><code>{{ t.request.id|default:"-"|truncatechars:12 }}</code></td>
+                        <td>{% if t.request.id %}<a href="{% url 'admin:django_celeryx_task_change' t.request.id %}"><code>{{ t.request.id|truncatechars:12 }}</code></a>{% else %}-{% endif %}</td>
                         <td><code>{{ t.eta|default:"-" }}</code></td>
                     </tr>
                     {% endfor %}

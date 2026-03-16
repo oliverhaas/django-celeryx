@@ -4,7 +4,7 @@ Example project startup task dispatching.
 Sends a batch of sample Celery tasks on Django startup so the admin
 has data to display immediately. This runs every time the dev server
 starts (or reloads), which is fine — it just adds more tasks to the
-in-memory state for demonstration.
+database for demonstration.
 
 The logic is intentionally verbose so developers can see what's happening.
 """

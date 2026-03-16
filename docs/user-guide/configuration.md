@@ -7,14 +7,17 @@ CELERYX = {
     # Celery app (dotted path). Auto-detected if None.
     "CELERY_APP": None,
 
-    # Database alias for persisting event data.
-    # None = in-memory only (no persistence across restarts).
+    # Database alias for storing task/worker state.
+    # None = auto-configured in-memory SQLite (lost on restart).
     # Set to a DATABASES alias to persist (e.g. "default", "celeryx").
     "DATABASE": None,
 
-    # Maximum age of stored events in seconds (default 24h).
-    # Events older than this are cleaned up periodically.
-    "MAX_EVENT_AGE": 86400,
+    # Maximum age of stored task records in seconds (default 24h).
+    "MAX_TASK_AGE": 86400,
+
+    # Maximum number of task records in the database.
+    # Oldest records are pruned when this limit is exceeded.
+    "MAX_TASK_COUNT": 100_000,
 
     # Set to False to disable monitoring on this instance.
     # Useful in multi-pod deployments where only one pod should monitor.
@@ -25,10 +28,6 @@ CELERYX = {
 
     # Periodically broadcast enable_events to workers.
     "ENABLE_EVENTS": True,
-
-    # In-memory state limits (ring buffers).
-    "MAX_TASKS": 100_000,
-    "MAX_WORKERS": 5_000,
 
     # Timeout for celery.control.inspect() calls.
     "INSPECT_TIMEOUT": 1.0,
@@ -48,15 +47,10 @@ CELERYX = {
 
 ## Database Persistence
 
-By default, django-celeryx stores all event data in memory. This means data is lost on restart. To persist events across restarts, configure a database:
+By default, django-celeryx stores all state in an auto-configured in-memory SQLite database. This means data is lost on restart. To persist across restarts, configure a database:
 
 ```python
-# Option 1: Use the default Django database
-CELERYX = {
-    "DATABASE": "default",
-}
-
-# Option 2: Use a dedicated database
+# Option 1: Use an explicit database
 DATABASES = {
     "default": { ... },
     "celeryx": {

@@ -4,12 +4,18 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/django-celeryx.svg)](https://pypi.org/project/django-celeryx/)
 [![CI](https://github.com/oliverhaas/django-celeryx/actions/workflows/ci.yml/badge.svg)](https://github.com/oliverhaas/django-celeryx/actions/workflows/ci.yml)
 
-Celery monitoring and management for Django admin. Like Flower, but embedded in your Django admin with htmx + Alpine.js for real-time updates.
+Celery monitoring and management for Django admin. Like Flower, but embedded in your Django admin with htmx for real-time updates.
 
 ## Installation
 
 ```console
-pip install django-celeryx
+pip install django-celeryx[celery]
+```
+
+Or with celery-asyncio:
+
+```console
+pip install django-celeryx[celery-asyncio]
 ```
 
 ## Quick Start
@@ -28,12 +34,10 @@ That's it. Start your Django server and navigate to the admin to see your Celery
 - **Real-time task monitoring** — Live task list with state, args, result, timing, auto-refreshing via htmx
 - **Worker management** — View worker status, pool info, active queues, configuration
 - **Control actions** — Revoke/terminate tasks, shutdown/restart workers, manage pools and queues
-- **Metrics dashboard** — Throughput, latency percentiles, success/failure rates
-- **Broker overview** — Queue names, message counts, consumer counts
+- **Broker overview** — Queue names, routing keys, consumer counts
 - **Django admin native** — Looks and feels like standard Django admin, no separate service to run
-- **No npm/build step** — htmx + Alpine.js included as static files, no JavaScript build pipeline
-- **Structured search** — Filter tasks by state, name, args, kwargs, result with prefix search
-- **Event-driven** — In-memory state built from Celery events, same approach as Flower
+- **Database persistence** — All state persisted to database (in-memory SQLite by default, or any Django database)
+- **Registered tasks** — Browse all registered task types, link to filtered task list
 
 ## Task Monitoring
 
@@ -41,7 +45,7 @@ The task list shows all Celery tasks with color-coded states:
 
 - **PENDING** (grey), **RECEIVED** (yellow), **STARTED** (blue), **SUCCESS** (green), **FAILURE** (red), **RETRY** (orange), **REVOKED** (purple)
 
-All 17 columns from Flower are available, configurable which to show.
+Configurable columns via `TASK_COLUMNS` setting.
 
 ## Worker Management
 
@@ -63,14 +67,13 @@ Full control parity with Flower:
 - Grow / shrink pool, set autoscale
 - Add / cancel queue consumer
 - Set rate limits and time limits
-- Apply (execute) tasks from admin
 
 ## Configuration
 
 ```python
 CELERYX = {
-    "MAX_TASKS": 100_000,
-    "MAX_WORKERS": 5_000,
+    "MAX_TASK_COUNT": 100_000,
+    "MAX_TASK_AGE": 86400,  # 24 hours
     "AUTO_REFRESH_INTERVAL": 3,
     "TASK_COLUMNS": ["name", "uuid", "state", "worker", "received", "started", "runtime"],
 }
@@ -96,7 +99,7 @@ Full documentation at [oliverhaas.github.io/django-celeryx](https://oliverhaas.g
 
 - Python 3.12+
 - Django 5.2+
-- Celery 5.4+
+- Celery 5.4+ or celery-asyncio 6.0+
 
 ## License
 

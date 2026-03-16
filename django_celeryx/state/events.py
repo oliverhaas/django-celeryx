@@ -206,10 +206,11 @@ def start_event_listener() -> None:
             _listener_thread.start()
 
 
-def stop_event_listener() -> None:
-    """Stop the event listener thread."""
+def stop_event_listener(timeout: float = 5.0) -> None:
+    """Stop the event listener thread and wait for it to finish."""
     global _listener_thread  # noqa: PLW0603
     with _listener_lock:
         if _listener_thread is not None:
             _listener_thread.stop()
+            _listener_thread.join(timeout=timeout)
             _listener_thread = None

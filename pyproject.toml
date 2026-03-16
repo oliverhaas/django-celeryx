@@ -88,7 +88,7 @@ ignore = [
   "SLF001",   # Private member access needed for Celery internals
   "TRY003",   # Long exception messages are helpful for debugging
   "TRY300",   # return in try block is cleaner for this pattern
-  "ANN401",   # Any is correct for in-memory state and generic admin patterns
+  "ANN401",   # Any is correct for Celery app instances and generic admin patterns
   "ARG002",   # Unused args: Django admin method signatures require specific params
   "BLE001",   # Broad exception catching needed for broker/transport resilience
   "PLC0415",  # Dynamic imports intentional (Django lazy loading, Celery app detection)

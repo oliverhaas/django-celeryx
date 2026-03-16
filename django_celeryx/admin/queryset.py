@@ -786,7 +786,9 @@ class RegisteredTaskAdminMixin:
 
     @admin.display(description=_("Tasks"))
     def tasks_link(self, obj: RegisteredTask) -> str:
+        from urllib.parse import urlencode
+
         from django.urls import reverse
 
-        url = reverse("admin:django_celeryx_task_changelist") + f"?q={obj.name}"
+        url = reverse("admin:django_celeryx_task_changelist") + "?" + urlencode({"task_name": obj.name})
         return format_html('<a href="{}">View Tasks &rarr;</a>', url)
