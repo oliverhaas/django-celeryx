@@ -861,7 +861,7 @@
 <ol>
 <li>Install django-celeryx:</li>
 </ol>
-<div class="language-console highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="go">pip install django-celeryx</span>
+<div class="language-console highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="go">pip install django-celeryx[celery]</span>
 </span></code></pre></div>
 <ol>
 <li>Add to your Django settings:</li>
@@ -872,13 +872,13 @@
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">]</span>
 </span></code></pre></div>
 <ol>
-<li>Start your Django server and navigate to the admin. You'll see Tasks, Workers, and Queues sections.</li>
+<li>Start your Django server and navigate to the admin. You'll see Tasks, Workers, Queues, and Registered Tasks sections.</li>
 </ol>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p>Optional configuration via <code>CELERYX</code> dict in settings:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">CELERYX</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;MAX_TASKS&quot;</span><span class="p">:</span> <span class="mi">100_000</span><span class="p">,</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;MAX_WORKERS&quot;</span><span class="p">:</span> <span class="mi">5_000</span><span class="p">,</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;MAX_TASK_COUNT&quot;</span><span class="p">:</span> <span class="mi">100_000</span><span class="p">,</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;MAX_TASK_AGE&quot;</span><span class="p">:</span> <span class="mi">86400</span><span class="p">,</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="s2">&quot;AUTO_REFRESH_INTERVAL&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">}</span>
 </span></code></pre></div>
