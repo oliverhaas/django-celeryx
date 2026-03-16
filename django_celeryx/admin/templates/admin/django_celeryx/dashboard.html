@@ -73,13 +73,13 @@
     <div class="celeryx-charts">
         {% if state_pie_svg %}
         <div class="celeryx-chart">
-            {{ state_pie_svg }}
+            {{ state_pie_svg|safe }}
         </div>
         {% endif %}
 
         {% if throughput_svg %}
         <div class="celeryx-chart" style="flex: 2;">
-            {{ throughput_svg }}
+            {{ throughput_svg|safe }}
         </div>
         {% endif %}
     </div>
@@ -87,7 +87,7 @@
     {% if top_tasks_svg %}
     <div class="celeryx-charts" style="margin-top: 20px;">
         <div class="celeryx-chart" style="flex: 1;">
-            {{ top_tasks_svg }}
+            {{ top_tasks_svg|safe }}
         </div>
     </div>
     {% endif %}
