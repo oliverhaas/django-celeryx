@@ -1,6 +1,6 @@
 """Database router for django-celeryx models.
 
-Routes all managed celeryx models (TaskEvent, WorkerEvent) to the database
+Routes all managed celeryx models (TaskState, WorkerState) to the database
 specified by CELERYX["DATABASE"]. Unmanaged models (Task, Worker, Queue,
 RegisteredTask) are not affected since they don't hit the database.
 

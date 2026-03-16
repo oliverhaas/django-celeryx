@@ -31,12 +31,13 @@ class CeleryXSettings:
     # Set to a Django DATABASES alias to use a persistent database.
     DATABASE: str | None = None
 
-    # Maximum age of stored events in seconds (default 24h).
-    # Events older than this are cleaned up periodically.
-    MAX_EVENT_AGE: int = 86400
+    # Maximum age of stored task records in seconds (default 24h).
+    # Tasks older than this are cleaned up periodically.
+    MAX_TASK_AGE: int = 86400
 
-    # Maximum number of task events to keep in the database.
-    MAX_TASKS: int = 100_000
+    # Maximum number of task records to keep in the database.
+    # Oldest records are pruned when this limit is exceeded.
+    MAX_TASK_COUNT: int = 100_000
 
     # Admin / event listener
     ADMIN_ENABLED: bool = True

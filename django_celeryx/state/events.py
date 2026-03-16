@@ -189,9 +189,9 @@ class EventListener(threading.Thread):
 
                 if now - last_cleanup > _CLEANUP_INTERVAL:
                     try:
-                        from django_celeryx.state.persistence import cleanup_old_events
+                        from django_celeryx.state.persistence import cleanup_old_tasks
 
-                        cleanup_old_events()
+                        cleanup_old_tasks()
                     except Exception:
                         logger.debug("Failed to run cleanup", exc_info=True)
                     last_cleanup = now

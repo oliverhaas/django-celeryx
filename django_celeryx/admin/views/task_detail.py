@@ -63,10 +63,10 @@ def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
     if response is not None:
         return response
 
-    from django_celeryx.db_models import TaskEvent
+    from django_celeryx.db_models import TaskState
     from django_celeryx.settings import get_db_alias
 
-    task = TaskEvent.objects.using(get_db_alias()).filter(uuid=task_id).first()
+    task = TaskState.objects.using(get_db_alias()).filter(uuid=task_id).first()
 
     can_revoke = task is not None and task.state in ("PENDING", "RECEIVED", "STARTED")
 

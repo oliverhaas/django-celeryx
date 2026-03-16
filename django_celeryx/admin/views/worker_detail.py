@@ -157,10 +157,10 @@ def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
     if response is not None:
         return response
 
-    from django_celeryx.db_models import WorkerEvent
+    from django_celeryx.db_models import WorkerState
     from django_celeryx.settings import get_db_alias
 
-    worker = WorkerEvent.objects.using(get_db_alias()).filter(hostname=hostname).first()
+    worker = WorkerState.objects.using(get_db_alias()).filter(hostname=hostname).first()
     tab = request.GET.get("tab", "pool")
     if tab not in WORKER_TABS:
         tab = "pool"

@@ -23,6 +23,11 @@
         </tr>
       </tbody>
     </table>
+    {% if monitoring_since %}
+    <p style="text-align: center; margin: 4px 0 0; color: var(--body-quiet-color); font-size: 11px;">
+      {% translate 'Monitoring since' %} <code>{{ monitoring_since }}</code>
+    </p>
+    {% endif %}
   </div>
 
   {{ block.super }}

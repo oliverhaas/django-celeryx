@@ -1,6 +1,6 @@
 """QuerySet-like objects and admin mixins for task, worker, and queue list views.
 
-All data reads come from the database (TaskEvent, WorkerEvent models).
+All data reads come from the database (TaskState, WorkerState models).
 The database is the single source of truth — there is no separate in-memory store.
 """
 
@@ -47,11 +47,11 @@ class _FakeQuery:
 def _tasks_from_db() -> list[Task]:
     """Load tasks from the database."""
     try:
-        from django_celeryx.db_models import TaskEvent
+        from django_celeryx.db_models import TaskState
 
         db = _get_db()
         tasks = []
-        for te in TaskEvent.objects.using(db).order_by("-updated_at")[:1000]:
+        for te in TaskState.objects.using(db).order_by("-updated_at")[:1000]:
             task = Task()
             task.uuid = te.uuid
             task.name = te.name
@@ -80,7 +80,7 @@ def _tasks_from_db() -> list[Task]:
 
 
 class TaskQuerySet:
-    """QuerySet-like object backed by TaskEvent database table."""
+    """QuerySet-like object backed by TaskState database table."""
 
     model = Task
     ordered = True
@@ -160,10 +160,10 @@ class TaskNameFilter(admin.SimpleListFilter):
 
     def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
         try:
-            from django_celeryx.db_models import TaskEvent
+            from django_celeryx.db_models import TaskState
 
             db = _get_db()
-            names = sorted(TaskEvent.objects.using(db).exclude(name="").values_list("name", flat=True).distinct())
+            names = sorted(TaskState.objects.using(db).exclude(name="").values_list("name", flat=True).distinct())
             return [(n, n) for n in names]
         except Exception:
             return []
@@ -181,10 +181,10 @@ class TaskWorkerFilter(admin.SimpleListFilter):
 
     def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
         try:
-            from django_celeryx.db_models import WorkerEvent
+            from django_celeryx.db_models import WorkerState
 
             db = _get_db()
-            hostnames = sorted(WorkerEvent.objects.using(db).values_list("hostname", flat=True))
+            hostnames = sorted(WorkerState.objects.using(db).values_list("hostname", flat=True))
             return [(h, h) for h in hostnames]
         except Exception:
             return []
@@ -315,11 +315,11 @@ class TaskAdminMixin:
 
 def _workers_from_db() -> list[Worker]:
     try:
-        from django_celeryx.db_models import WorkerEvent
+        from django_celeryx.db_models import WorkerState
 
         db = _get_db()
         workers = []
-        for we in WorkerEvent.objects.using(db).all():
+        for we in WorkerState.objects.using(db).all():
             worker = Worker()
             worker.hostname = we.hostname
             worker.status = we.status
@@ -346,12 +346,12 @@ def _enrich_workers(workers: list[Worker]) -> None:
     try:
         from django.db.models import Count, Q
 
-        from django_celeryx.db_models import TaskEvent
+        from django_celeryx.db_models import TaskState
 
         db = _get_db()
         by_hostname = {w.hostname: w for w in workers}
         for row in (
-            TaskEvent.objects.using(db)
+            TaskState.objects.using(db)
             .values("worker")
             .annotate(
                 succeeded=Count("id", filter=Q(state="SUCCESS")),
@@ -486,20 +486,24 @@ class WorkerAdminMixin:
     def changelist_view(self, request: HttpRequest, extra_context: dict[str, Any] | None = None) -> Any:
         extra_context = extra_context or {}
         try:
-            from django.db.models import Count, Q
+            from django.db.models import Count, Min, Q
 
-            from django_celeryx.db_models import TaskEvent
+            from django_celeryx.db_models import TaskState
 
             db = _get_db()
-            extra_context.update(
-                TaskEvent.objects.using(db).aggregate(
-                    total_active=Count("id", filter=Q(state="STARTED")),
-                    total_processed=Count("id"),
-                    total_succeeded=Count("id", filter=Q(state="SUCCESS")),
-                    total_failed=Count("id", filter=Q(state="FAILURE")),
-                    total_retried=Count("id", filter=Q(state="RETRY")),
-                )
+            agg = TaskState.objects.using(db).aggregate(
+                total_active=Count("id", filter=Q(state="STARTED")),
+                total_processed=Count("id"),
+                total_succeeded=Count("id", filter=Q(state="SUCCESS")),
+                total_failed=Count("id", filter=Q(state="FAILURE")),
+                total_retried=Count("id", filter=Q(state="RETRY")),
+                oldest_task=Min("updated_at"),
             )
+            extra_context.update(agg)
+            oldest = agg.get("oldest_task")
+            if oldest:
+                dt = datetime.datetime.fromtimestamp(oldest, tz=datetime.UTC)
+                extra_context["monitoring_since"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
         except Exception:
             extra_context.update(
                 {"total_active": 0, "total_processed": 0, "total_succeeded": 0, "total_failed": 0, "total_retried": 0}

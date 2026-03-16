@@ -1,7 +1,7 @@
 """Unmanaged display models for the Django admin interface.
 
 These models don't create database tables. Admin views populate them from
-the managed TaskEvent/WorkerEvent models (or from Celery inspect() calls).
+the managed TaskState/WorkerState models (or from Celery inspect() calls).
 """
 
 from __future__ import annotations
@@ -144,4 +144,4 @@ class RegisteredTask(models.Model):
 
 
 # Import managed DB models so Django discovers them for migrations
-from django_celeryx.db_models import TaskEvent, WorkerEvent  # noqa: E402, F401
+from django_celeryx.db_models import TaskState, WorkerState  # noqa: E402, F401

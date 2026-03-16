@@ -6,9 +6,9 @@ Celery Flower reimagined as a Django admin app. Same monitoring and management c
 
 ## Core Principles
 
-1. **Flower feature parity** — match Flower's exact layout, columns, and capabilities, just restyled for Django admin
+1. **Flower feature parity** — almost exactly match Flower's layout, columns, and capabilities, just restyled for Django admin
 2. **Database as single source of truth** — all event data persisted to a configurable database (in-memory SQLite by default, or any Django database)
-3. **Zero extra infrastructure** — runs inside your Django process, uses your existing admin auth
+3. **Zero extra infrastructure** — runs inside your Django process, uses your existing admin auth. More realistic k8s deployments or similar with a single "admin pod" supported via configs
 4. **Celery + celery-asyncio compatibility** — works with both via optional dependencies
 
 ## Must-Have Features (Flower Parity)
@@ -58,11 +58,11 @@ Celery Flower reimagined as a Django admin app. Same monitoring and management c
 - Handles: task-sent, task-received, task-started, task-succeeded, task-failed, task-retried, task-revoked, task-rejected, worker-online, worker-heartbeat, worker-offline
 - Exponential backoff reconnection (1s → 60s)
 - Periodic `enable_events` broadcast (every 60s)
-- Periodic cleanup of old events (every hour, configurable via `MAX_EVENT_AGE`)
+- Periodic cleanup of old tasks (every hour, configurable via `MAX_TASK_AGE` and `MAX_TASK_COUNT`)
 
 ### Database Persistence
 
-- Managed models: `TaskEvent`, `WorkerEvent` — actual DB tables
+- Managed models: `TaskState`, `WorkerState` — actual DB tables
 - Unmanaged models: `Task`, `Worker`, `Queue`, `RegisteredTask` — display-only, populated from DB/inspect()
 - Database router (`CeleryXRouter`) for isolating to a dedicated database
 - Auto-configured in-memory SQLite when no `DATABASE` setting provided
@@ -76,8 +76,8 @@ All settings under `CELERYX = {...}` in Django settings:
 |---|---|---|
 | `CELERY_APP` | auto-detect | Dotted path to Celery app instance |
 | `DATABASE` | `None` (in-memory SQLite) | Django DATABASES alias |
-| `MAX_EVENT_AGE` | `86400` (24h) | Seconds before old events are cleaned up |
-| `MAX_TASKS` | `100_000` | Max task events in database |
+| `MAX_TASK_AGE` | `86400` (24h) | Seconds before old task records are cleaned up |
+| `MAX_TASK_COUNT` | `100_000` | Max task records in database (oldest pruned when exceeded) |
 | `ADMIN_ENABLED` | `True` | Enable/disable admin and event listener |
 | `EVENT_LISTENER_AUTOSTART` | `True` | Auto-start event listener on app ready |
 | `ENABLE_EVENTS` | `True` | Broadcast enable_events to workers |
@@ -88,8 +88,8 @@ All settings under `CELERYX = {...}` in Django settings:
 
 ### Indexing (million-task scale)
 
-- `TaskEvent`: composite indexes on (worker, state), (name, state), (-updated_at); unique on uuid
-- `WorkerEvent`: unique on hostname, indexed on updated_at
+- `TaskState`: composite indexes on (worker, state), (name, state), (-updated_at); unique on uuid
+- `WorkerState`: unique on hostname, indexed on updated_at
 
 ## Nice-to-Have (Post-MVP)
 

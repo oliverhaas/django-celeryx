@@ -10,7 +10,7 @@ from __future__ import annotations
 from django.db import models
 
 
-class TaskEvent(models.Model):
+class TaskState(models.Model):
     """Persisted task event data, written by the event listener."""
 
     uuid = models.CharField(max_length=255, unique=True)
@@ -54,7 +54,7 @@ class TaskEvent(models.Model):
         return f"{self.name or 'Task'} ({self.uuid[:8]})"
 
 
-class WorkerEvent(models.Model):
+class WorkerState(models.Model):
     """Persisted worker state, written by the event listener."""
 
     hostname = models.CharField(max_length=255, unique=True)
