@@ -33,24 +33,41 @@ def _build_state_pie(state_counts: dict[str, int]) -> str:
     import pygal
 
     config = _common_config()
-    config.update(inner_radius=0.4, print_values=True, value_formatter=lambda x: str(int(x)))
+    config.update(
+        inner_radius=0.35,
+        print_values=True,
+        print_values_position="center",
+        value_formatter=lambda x: str(int(x)),
+        legend_at_bottom_columns=2,
+        margin=5,
+        margin_top=20,
+        margin_bottom=5,
+        height=250,
+        width=320,
+    )
+    chart = pygal.Pie(**config)
+    # Build ordered lists so legend colors match pie slices
+    state_colors = {
+        "SUCCESS": "#417690",
+        "FAILURE": "#ba2121",
+        "STARTED": "#79aec8",
+        "RETRY": "#e09c3f",
+        "REVOKED": "#7c3aed",
+        "RECEIVED": "#c4a000",
+        "PENDING": "#999",
+        "REJECTED": "#bbb",
+    }
+    # Preferred display order
+    order = ["SUCCESS", "FAILURE", "STARTED", "RETRY", "REVOKED", "RECEIVED", "PENDING", "REJECTED"]
+    items = [(s, state_counts[s]) for s in order if state_counts.get(s, 0) > 0]
+
+    # Set style colors to match the ordered slices
+    config["style"] = _chart_style(colors=tuple(state_colors.get(s, "#999") for s, _ in items))
     chart = pygal.Pie(**config)
     chart.title = "Task States"
 
-    colors = {
-        "SUCCESS": "#22c55e",
-        "FAILURE": "#ef4444",
-        "STARTED": "#3b82f6",
-        "RETRY": "#f97316",
-        "REVOKED": "#8b5cf6",
-        "RECEIVED": "#eab308",
-        "PENDING": "#6b7280",
-        "REJECTED": "#9ca3af",
-    }
-
-    for state, count in sorted(state_counts.items()):
-        if count > 0:
-            chart.add(state, [{"value": count, "color": colors.get(state, "#6b7280")}])
+    for state, count in items:
+        chart.add(state, count)
 
     return chart.render(is_unicode=True)
 
@@ -60,6 +77,7 @@ def _build_throughput_chart(hourly_data: list[tuple[str, int, int]]) -> str:
     import pygal
 
     config = _common_config()
+    config["style"] = _chart_style(colors=("#417690", "#ba2121"))
     config.update(
         x_label_rotation=45,
         show_dots=False,
@@ -75,8 +93,8 @@ def _build_throughput_chart(hourly_data: list[tuple[str, int, int]]) -> str:
     failed = [row[2] for row in hourly_data]
 
     chart.x_labels = labels
-    chart.add("Succeeded", succeeded, color="#22c55e")
-    chart.add("Failed", failed, color="#ef4444")
+    chart.add("Succeeded", succeeded)
+    chart.add("Failed", failed)
 
     return chart.render(is_unicode=True)
 
@@ -90,20 +108,44 @@ def _build_top_tasks_bar(task_counts: list[tuple[str, int]]) -> str:
         show_legend=False,
         print_values=True,
         value_formatter=lambda x: str(int(x)),
+        truncate_label=-1,
+        margin_left=10,
+        spacing=15,
+        height=max(180, 50 * len(task_counts[:10])),
     )
+    config["style"] = _chart_style(colors=("#417690",))
     chart = pygal.HorizontalBar(**config)
     chart.title = "Top Tasks (by count)"
 
-    for name, count in task_counts[:15]:
-        short_name = name.rsplit(".", 1)[-1] if "." in name else name
-        chart.add(short_name, count)
+    # Sort descending and take top 10, then reverse for horizontal bar (top = biggest)
+    items = sorted(task_counts[:10], key=lambda x: x[1])
+    labels = []
+    for name, _count in items:
+        parts = name.rsplit(".", 2)
+        labels.append(".".join(parts[-2:]) if len(parts) > 1 else name)
+    chart.x_labels = labels
+    chart.add("Tasks", [{"value": c, "color": "#417690"} for _, c in items])
 
     return chart.render(is_unicode=True)
 
 
-def _chart_style() -> object:
+def _chart_style(colors: tuple[str, ...] | None = None) -> object:
     """Pygal style matching Django admin."""
     from pygal.style import Style
+
+    if colors is None:
+        colors = (
+            "#417690",
+            "#ba2121",
+            "#79aec8",
+            "#e09c3f",
+            "#7c3aed",
+            "#c4a000",
+            "#999",
+            "#14b8a6",
+            "#ec4899",
+            "#84cc16",
+        )
 
     return Style(
         background="transparent",
@@ -111,28 +153,17 @@ def _chart_style() -> object:
         foreground="#417690",
         foreground_strong="#205067",
         foreground_subtle="#ddd",
-        opacity=".8",
-        opacity_hover=".9",
+        opacity=".85",
+        opacity_hover=".95",
         transition="200ms",
-        colors=(
-            "#22c55e",
-            "#ef4444",
-            "#3b82f6",
-            "#f97316",
-            "#8b5cf6",
-            "#eab308",
-            "#6b7280",
-            "#14b8a6",
-            "#ec4899",
-            "#84cc16",
-        ),
-        value_colors=("#417690",),
+        colors=colors,
+        value_colors=("#fff",),
         font_family="'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif",
-        title_font_size=14,
-        label_font_size=11,
-        major_label_font_size=11,
-        value_font_size=11,
-        legend_font_size=12,
+        title_font_size=15,
+        label_font_size=12,
+        major_label_font_size=12,
+        value_font_size=12,
+        legend_font_size=13,
         tooltip_font_size=12,
         guide_stroke_color="#e0e0e0",
         major_guide_stroke_color="#ccc",

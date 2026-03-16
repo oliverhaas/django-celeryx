@@ -5,26 +5,69 @@
 {{ block.super }}
 <link rel="stylesheet" href="{% static "admin/css/forms.css" %}">
 <style>
-    .celeryx-stats { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+    .celeryx-stats {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
     .celeryx-stat {
+        flex: 1;
+        min-width: 100px;
         background: var(--darkened-bg);
         border: 1px solid var(--hairline-color);
-        border-radius: 4px;
-        padding: 15px 20px;
-        min-width: 120px;
+        border-radius: 6px;
+        padding: 16px 12px;
         text-align: center;
     }
-    .celeryx-stat-value { font-size: 24px; font-weight: bold; color: var(--body-fg); }
-    .celeryx-stat-label { font-size: 11px; color: var(--body-quiet-color); text-transform: uppercase; margin-top: 4px; }
-    .celeryx-charts { display: flex; gap: 20px; flex-wrap: wrap; }
+    .celeryx-stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--body-fg);
+        line-height: 1.2;
+    }
+    .celeryx-stat-label {
+        font-size: 10px;
+        color: var(--body-quiet-color);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 6px;
+    }
+    .celeryx-row {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    .celeryx-row > * {
+        flex: 1;
+        min-width: 0;
+    }
     .celeryx-chart {
-        background: var(--darkened-bg);
+        background: var(--body-bg);
         border: 1px solid var(--hairline-color);
-        border-radius: 4px;
-        padding: 10px;
+        border-radius: 6px;
+        padding: 16px;
         overflow: hidden;
     }
-    .celeryx-chart svg { max-width: 100%; height: auto; }
+    .celeryx-chart svg {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+    .celeryx-pie {
+        display: flex;
+        align-items: center;
+    }
+    .celeryx-pie svg {
+        max-height: 280px;
+    }
+    /* Override Pygal's embedded text styling to match admin */
+    .celeryx-chart .pygal-chart text {
+        font-family: 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    }
+    @media (max-width: 900px) {
+        .celeryx-row { flex-direction: column; }
+    }
 </style>
 {% endblock %}
 
@@ -48,14 +91,14 @@
     <div class="celeryx-stats">
         <div class="celeryx-stat">
             <div class="celeryx-stat-value">{{ total_tasks }}</div>
-            <div class="celeryx-stat-label">{% translate 'Total Tasks' %}</div>
+            <div class="celeryx-stat-label">{% translate 'Total' %}</div>
         </div>
         <div class="celeryx-stat">
-            <div class="celeryx-stat-value" style="color: #22c55e;">{{ total_succeeded }}</div>
+            <div class="celeryx-stat-value" style="color: #417690;">{{ total_succeeded }}</div>
             <div class="celeryx-stat-label">{% translate 'Succeeded' %}</div>
         </div>
         <div class="celeryx-stat">
-            <div class="celeryx-stat-value" style="color: #ef4444;">{{ total_failed }}</div>
+            <div class="celeryx-stat-value" style="color: #ba2121;">{{ total_failed }}</div>
             <div class="celeryx-stat-label">{% translate 'Failed' %}</div>
         </div>
         <div class="celeryx-stat">
@@ -70,23 +113,32 @@
         {% endif %}
     </div>
 
-    <div class="celeryx-charts">
-        {% if state_pie_svg %}
+    {% if state_pie_svg and throughput_svg %}
+    <div class="celeryx-row" style="align-items: start;">
+        <div class="celeryx-chart celeryx-pie" style="flex: 0 0 320px; max-width: 320px;">
+            {{ state_pie_svg|safe }}
+        </div>
+        <div class="celeryx-chart" style="flex: 1;">
+            {{ throughput_svg|safe }}
+        </div>
+    </div>
+    {% elif state_pie_svg %}
+    <div class="celeryx-row">
         <div class="celeryx-chart">
             {{ state_pie_svg|safe }}
         </div>
-        {% endif %}
-
-        {% if throughput_svg %}
-        <div class="celeryx-chart" style="flex: 2;">
+    </div>
+    {% elif throughput_svg %}
+    <div class="celeryx-row">
+        <div class="celeryx-chart">
             {{ throughput_svg|safe }}
         </div>
-        {% endif %}
     </div>
+    {% endif %}
 
     {% if top_tasks_svg %}
-    <div class="celeryx-charts" style="margin-top: 20px;">
-        <div class="celeryx-chart" style="flex: 1;">
+    <div class="celeryx-row">
+        <div class="celeryx-chart">
             {{ top_tasks_svg|safe }}
         </div>
     </div>
