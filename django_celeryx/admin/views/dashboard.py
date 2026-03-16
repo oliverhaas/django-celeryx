@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin
 from django.shortcuts import render
@@ -12,18 +12,29 @@ if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
 
 
+def _common_config() -> dict[str, Any]:
+    """Common Pygal chart configuration."""
+    return {
+        "style": _chart_style(),
+        "disable_xml_declaration": True,
+        "explicit_size": False,
+        "show_x_guides": False,
+        "show_y_guides": True,
+        "margin": 20,
+        "legend_at_bottom": True,
+        "legend_at_bottom_columns": 4,
+        "tooltip_border_radius": 4,
+        "no_prefix": True,
+    }
+
+
 def _build_state_pie(state_counts: dict[str, int]) -> str:
     """Build a pie chart of task states."""
     import pygal
 
-    chart = pygal.Pie(
-        inner_radius=0.4,
-        style=_chart_style(),
-        width=400,
-        height=300,
-        legend_at_bottom=True,
-        print_values=True,
-    )
+    config = _common_config()
+    config.update(inner_radius=0.4, print_values=True, value_formatter=lambda x: str(int(x)))
+    chart = pygal.Pie(**config)
     chart.title = "Task States"
 
     colors = {
@@ -39,7 +50,7 @@ def _build_state_pie(state_counts: dict[str, int]) -> str:
 
     for state, count in sorted(state_counts.items()):
         if count > 0:
-            chart.add(f"{state} ({count})", count, color=colors.get(state, "#6b7280"))
+            chart.add(state, [{"value": count, "color": colors.get(state, "#6b7280")}])
 
     return chart.render(is_unicode=True)
 
@@ -48,15 +59,15 @@ def _build_throughput_chart(hourly_data: list[tuple[str, int, int]]) -> str:
     """Build a line chart of task throughput over time."""
     import pygal
 
-    chart = pygal.Line(
-        style=_chart_style(),
-        width=800,
-        height=300,
+    config = _common_config()
+    config.update(
         x_label_rotation=45,
-        show_dots=True,
+        show_dots=False,
         fill=True,
-        legend_at_bottom=True,
+        show_minor_x_labels=False,
+        x_labels_major_every=4,
     )
+    chart = pygal.Line(**config)
     chart.title = "Throughput (last 24h)"
 
     labels = [row[0] for row in hourly_data]
@@ -74,13 +85,13 @@ def _build_top_tasks_bar(task_counts: list[tuple[str, int]]) -> str:
     """Build a horizontal bar chart of most common task types."""
     import pygal
 
-    chart = pygal.HorizontalBar(
-        style=_chart_style(),
-        width=800,
-        height=max(200, 40 * len(task_counts)),
+    config = _common_config()
+    config.update(
         show_legend=False,
         print_values=True,
+        value_formatter=lambda x: str(int(x)),
     )
+    chart = pygal.HorizontalBar(**config)
     chart.title = "Top Tasks (by count)"
 
     for name, count in task_counts[:15]:
@@ -99,7 +110,10 @@ def _chart_style() -> object:
         plot_background="transparent",
         foreground="#417690",
         foreground_strong="#205067",
-        foreground_subtle="#79aec8",
+        foreground_subtle="#ddd",
+        opacity=".8",
+        opacity_hover=".9",
+        transition="200ms",
         colors=(
             "#22c55e",
             "#ef4444",
@@ -112,10 +126,16 @@ def _chart_style() -> object:
             "#ec4899",
             "#84cc16",
         ),
-        font_family="system-ui, -apple-system, sans-serif",
+        value_colors=("#417690",),
+        font_family="'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif",
         title_font_size=14,
         label_font_size=11,
+        major_label_font_size=11,
         value_font_size=11,
+        legend_font_size=12,
+        tooltip_font_size=12,
+        guide_stroke_color="#e0e0e0",
+        major_guide_stroke_color="#ccc",
     )
 
 

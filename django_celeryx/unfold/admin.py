@@ -18,7 +18,7 @@ from django_celeryx.admin.queryset import (
     WorkerAdminMixin,
 )
 
-from .models import Queue, RegisteredTask, Task, Worker
+from .models import Dashboard, Queue, RegisteredTask, Task, Worker
 
 if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
@@ -200,3 +200,23 @@ class RegisteredTaskAdmin(RegisteredTaskAdminMixin, ModelAdmin):  # type: ignore
 
     def has_delete_permission(self, request: HttpRequest, obj: RegisteredTask | None = None) -> bool:
         return False
+
+
+@admin.register(Dashboard)
+class DashboardAdmin(ModelAdmin):  # type: ignore[misc]
+    """Sidebar entry that redirects to the dashboard view."""
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: Dashboard | None = None) -> bool:
+        return False
+
+    def changelist_view(
+        self,
+        request: HttpRequest,
+        extra_context: dict[str, Any] | None = None,
+    ) -> HttpResponse:
+        from django.shortcuts import redirect
+
+        return redirect("admin:django_celeryx_dashboard")

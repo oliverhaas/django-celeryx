@@ -10,7 +10,7 @@ from django.core.exceptions import PermissionDenied
 from django.urls import path
 from django.utils.translation import gettext_lazy as _
 
-from .models import Queue, RegisteredTask, Task, Worker
+from .models import Dashboard, Queue, RegisteredTask, Task, Worker
 from .queryset import (
     QueueAdminMixin,
     RegisteredTaskAdminMixin,
@@ -207,3 +207,29 @@ class RegisteredTaskAdmin(RegisteredTaskAdminMixin, _RegisteredTaskBase):  # typ
 
     def has_delete_permission(self, request: HttpRequest, obj: RegisteredTask | None = None) -> bool:
         return False
+
+
+if TYPE_CHECKING:
+    _DashboardBase = admin.ModelAdmin[Dashboard]
+else:
+    _DashboardBase = admin.ModelAdmin
+
+
+@admin.register(Dashboard)
+class DashboardAdmin(_DashboardBase):  # type: ignore[misc]
+    """Sidebar entry that redirects to the dashboard view."""
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: Dashboard | None = None) -> bool:
+        return False
+
+    def changelist_view(
+        self,
+        request: HttpRequest,
+        extra_context: dict[str, Any] | None = None,
+    ) -> HttpResponse:
+        from django.shortcuts import redirect
+
+        return redirect("admin:django_celeryx_dashboard")

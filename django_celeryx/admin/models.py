@@ -143,5 +143,21 @@ class RegisteredTask(models.Model):
         self.name = value
 
 
+class Dashboard(models.Model):
+    """Unmanaged model used as a sidebar entry for the dashboard view."""
+
+    name = models.CharField(max_length=1, primary_key=True)
+
+    class Meta:
+        managed = False
+        app_label = "django_celeryx"
+        default_permissions = ("view",)
+        verbose_name = "Dashboard"
+        verbose_name_plural = "Dashboard"
+
+    def __str__(self) -> str:
+        return "Dashboard"
+
+
 # Import managed DB models so Django discovers them for migrations
 from django_celeryx.db_models import TaskState, WorkerState  # noqa: E402, F401
