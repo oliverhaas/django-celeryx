@@ -1,1 +1,1 @@
-"""In-memory state management for Celery events."""
+"""Event listener and database persistence for Celery events."""

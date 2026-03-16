@@ -1,12 +1,10 @@
-"""Unmanaged models for Celery tasks, workers, and queues.
+"""Unmanaged display models for the Django admin interface.
 
-These models don't create database tables — they're backed by in-memory state.
-This follows the same pattern as django-cachex's unmanaged models.
+These models don't create database tables. Admin views populate them from
+the managed TaskEvent/WorkerEvent models (or from Celery inspect() calls).
 """
 
 from __future__ import annotations
-
-from typing import Any
 
 from django.db import models
 
@@ -31,6 +29,8 @@ class Task(models.Model):
     exchange = models.CharField(max_length=255, blank=True, default="")
     routing_key = models.CharField(max_length=255, blank=True, default="")
     retries = models.IntegerField(default=0)
+    parent_id = models.CharField(max_length=255, blank=True, default="")
+    root_id = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         managed = False
@@ -41,29 +41,6 @@ class Task(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name or 'Task'} ({self.uuid[:8]})"
-
-    @classmethod
-    def from_task_info(cls, task_info: Any) -> Task:
-        """Create a Task instance from a TaskInfo dataclass."""
-        task = cls()
-        task.uuid = task_info.uuid
-        task.name = task_info.name or ""
-        task.state = task_info.state
-        task.worker = task_info.worker or ""
-        task.args = task_info.args or ""
-        task.kwargs = task_info.kwargs or ""
-        task.result = task_info.result or ""
-        task.exception = task_info.exception or ""
-        task.traceback = task_info.traceback or ""
-        task.received = task_info.received
-        task.started = task_info.started
-        task.runtime = task_info.runtime
-        task.eta = task_info.eta or ""
-        task.expires = task_info.expires or ""
-        task.exchange = task_info.exchange or ""
-        task.routing_key = task_info.routing_key or ""
-        task.retries = task_info.retries
-        return task
 
     @property
     def pk(self) -> str:
@@ -105,32 +82,6 @@ class Worker(models.Model):
 
     def __str__(self) -> str:
         return self.hostname or "Worker"
-
-    @classmethod
-    def from_worker_info(cls, worker_info: Any) -> Worker:
-        """Create a Worker instance from a WorkerInfo dataclass."""
-        worker = cls()
-        worker.hostname = worker_info.hostname
-        worker.status = worker_info.status
-        worker.active = worker_info.active
-        worker.processed = worker_info.processed
-        worker.succeeded = worker_info.succeeded
-        worker.failed = worker_info.failed
-        worker.retried = worker_info.retried
-        worker.pool = worker_info.pool or ""
-        worker.concurrency = worker_info.concurrency
-        worker.sw_ident = worker_info.sw_ident or ""
-        worker.sw_ver = worker_info.sw_ver or ""
-        worker.sw_sys = worker_info.sw_sys or ""
-        worker.uptime = worker_info.uptime
-        worker.pid = worker_info.pid
-        worker.freq = worker_info.freq
-        worker.prefetch_count = worker_info.prefetch_count
-        worker.last_heartbeat = worker_info.last_heartbeat
-        # Format loadavg for display
-        if worker_info.loadavg:
-            worker.loadavg = ", ".join(f"{x:.2f}" for x in worker_info.loadavg)
-        return worker
 
     @property
     def pk(self) -> str:

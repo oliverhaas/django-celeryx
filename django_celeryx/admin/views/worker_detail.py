@@ -109,7 +109,9 @@ def _dispatch_limit_action(request: HttpRequest, hostname: str, action: str) -> 
     if action == "time_limit":
         soft = post.get("soft", "").strip()
         hard = post.get("hard", "").strip()
-        set_time_limit(task_name, soft=float(soft) if soft else None, hard=float(hard) if hard else None, destination=[hostname])
+        set_time_limit(
+            task_name, soft=float(soft) if soft else None, hard=float(hard) if hard else None, destination=[hostname]
+        )
         return f"Time limit set for {task_name}."
     return ""
 
@@ -173,37 +175,43 @@ def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
     conf_items = sorted(conf.items()) if isinstance(conf, dict) else []
 
     context = admin.site.each_context(request)
-    context.update({
-        "title": f"Worker: {hostname}",
-        "hostname": hostname,
-        "worker": worker,
-        "current_tab": tab,
-        "tabs": WORKER_TABS,
-        "opts": {"app_label": "django_celeryx", "model_name": "worker", "verbose_name_plural": "Workers",
-                 "app_config": type("", (), {"verbose_name": "django-celeryx"})()},
-        # Pool tab
-        "pool_type": pool_type,
-        "pool_concurrency": pool_info.get("max-concurrency"),
-        "pool_processes": pool_info.get("processes", []),
-        "pool_max_tasks_per_child": pool_info.get("max-tasks-per-child"),
-        "pool_timeouts": pool_info.get("timeouts"),
-        "prefetch_count": data.get("prefetch_count"),
-        # Queues tab
-        "queues": data.get("queues", []),
-        # Tasks tab
-        "total_processed": data.get("total", {}),
-        "active_tasks": data.get("active", []),
-        "scheduled_tasks": data.get("scheduled", []),
-        "reserved_tasks": data.get("reserved", []),
-        "revoked_tasks": data.get("revoked", []),
-        "registered_tasks": sorted(data.get("registered", [])),
-        # Config tab
-        "conf_items": conf_items,
-        # Stats tab
-        "rusage": data.get("rusage", {}),
-        "broker_info": data.get("broker", {}),
-        "pid": data.get("pid"),
-        "uptime": data.get("uptime"),
-        "clock": data.get("clock"),
-    })
+    context.update(
+        {
+            "title": f"Worker: {hostname}",
+            "hostname": hostname,
+            "worker": worker,
+            "current_tab": tab,
+            "tabs": WORKER_TABS,
+            "opts": {
+                "app_label": "django_celeryx",
+                "model_name": "worker",
+                "verbose_name_plural": "Workers",
+                "app_config": type("", (), {"verbose_name": "django-celeryx"})(),
+            },
+            # Pool tab
+            "pool_type": pool_type,
+            "pool_concurrency": pool_info.get("max-concurrency"),
+            "pool_processes": pool_info.get("processes", []),
+            "pool_max_tasks_per_child": pool_info.get("max-tasks-per-child"),
+            "pool_timeouts": pool_info.get("timeouts"),
+            "prefetch_count": data.get("prefetch_count"),
+            # Queues tab
+            "queues": data.get("queues", []),
+            # Tasks tab
+            "total_processed": data.get("total", {}),
+            "active_tasks": data.get("active", []),
+            "scheduled_tasks": data.get("scheduled", []),
+            "reserved_tasks": data.get("reserved", []),
+            "revoked_tasks": data.get("revoked", []),
+            "registered_tasks": sorted(data.get("registered", [])),
+            # Config tab
+            "conf_items": conf_items,
+            # Stats tab
+            "rusage": data.get("rusage", {}),
+            "broker_info": data.get("broker", {}),
+            "pid": data.get("pid"),
+            "uptime": data.get("uptime"),
+            "clock": data.get("clock"),
+        }
+    )
     return render(request, "admin/django_celeryx/worker/change_form.html", context)

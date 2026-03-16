@@ -70,6 +70,8 @@ def _tasks_from_db() -> list[Task]:
             task.exchange = te.exchange
             task.routing_key = te.routing_key
             task.retries = te.retries
+            task.parent_id = te.parent_id
+            task.root_id = te.root_id
             tasks.append(task)
         return tasks
     except Exception:
@@ -161,12 +163,7 @@ class TaskNameFilter(admin.SimpleListFilter):
             from django_celeryx.db_models import TaskEvent
 
             db = _get_db()
-            names = sorted(
-                TaskEvent.objects.using(db)
-                .exclude(name="")
-                .values_list("name", flat=True)
-                .distinct()
-            )
+            names = sorted(TaskEvent.objects.using(db).exclude(name="").values_list("name", flat=True).distinct())
             return [(n, n) for n in names]
         except Exception:
             return []
@@ -200,16 +197,34 @@ class TaskWorkerFilter(admin.SimpleListFilter):
 
 
 _TASK_COLUMN_MAP: dict[str, str] = {
-    "name": "name", "uuid": "uuid_short", "state": "state_display",
-    "worker": "worker", "received": "received_display", "started": "started_display",
-    "runtime": "runtime_display", "args": "args", "kwargs": "kwargs",
-    "result": "result", "exchange": "exchange", "routing_key": "routing_key",
-    "retries": "retries", "exception": "exception", "eta": "eta", "expires": "expires",
+    "name": "name",
+    "uuid": "uuid_short",
+    "state": "state_display",
+    "worker": "worker",
+    "received": "received_display",
+    "started": "started_display",
+    "runtime": "runtime_display",
+    "args": "args",
+    "kwargs": "kwargs",
+    "result": "result",
+    "exchange": "exchange",
+    "routing_key": "routing_key",
+    "retries": "retries",
+    "exception": "exception",
+    "eta": "eta",
+    "expires": "expires",
 }
 
 
 class TaskAdminMixin:
-    list_display: ClassVar[Any] = ["name", "uuid_short", "state_display", "worker", "received_display", "runtime_display"]
+    list_display: ClassVar[Any] = [
+        "name",
+        "uuid_short",
+        "state_display",
+        "worker",
+        "received_display",
+        "runtime_display",
+    ]
     list_display_links: ClassVar[Any] = ["name"]
     list_filter: ClassVar[Any] = [TaskStateFilter, TaskNameFilter, TaskWorkerFilter]
     search_fields: ClassVar[Any] = ["name", "uuid"]
@@ -225,15 +240,22 @@ class TaskAdminMixin:
     def get_queryset(self, request: HttpRequest) -> TaskQuerySet:
         return TaskQuerySet()
 
-    def get_search_results(self, request: HttpRequest, queryset: TaskQuerySet, search_term: str) -> tuple[TaskQuerySet, bool]:
+    def get_search_results(
+        self, request: HttpRequest, queryset: TaskQuerySet, search_term: str
+    ) -> tuple[TaskQuerySet, bool]:
         if not search_term:
             return queryset, False
         term = search_term.lower()
         filtered = [
-            t for t in queryset
-            if term in (t.name or "").lower() or term in t.uuid.lower() or term in t.state.lower()
-            or term in (t.worker or "").lower() or term in (t.args or "").lower()
-            or term in (t.kwargs or "").lower() or term in (t.result or "").lower()
+            t
+            for t in queryset
+            if term in (t.name or "").lower()
+            or term in t.uuid.lower()
+            or term in t.state.lower()
+            or term in (t.worker or "").lower()
+            or term in (t.args or "").lower()
+            or term in (t.kwargs or "").lower()
+            or term in (t.result or "").lower()
         ]
         return TaskQuerySet(filtered), False
 
@@ -252,7 +274,8 @@ class TaskAdminMixin:
         style = TASK_STATE_COLORS.get(obj.state, "background:#f3f4f6;color:#374151;")
         return format_html(
             '<span style="{}padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase">{}</span>',
-            style, obj.state,
+            style,
+            obj.state,
         )
 
     @admin.display(description=_("Received"))
@@ -327,10 +350,14 @@ def _enrich_workers(workers: list[Worker]) -> None:
 
         db = _get_db()
         by_hostname = {w.hostname: w for w in workers}
-        for row in TaskEvent.objects.using(db).values("worker").annotate(
-            succeeded=Count("id", filter=Q(state="SUCCESS")),
-            failed=Count("id", filter=Q(state="FAILURE")),
-            retried=Count("id", filter=Q(state="RETRY")),
+        for row in (
+            TaskEvent.objects.using(db)
+            .values("worker")
+            .annotate(
+                succeeded=Count("id", filter=Q(state="SUCCESS")),
+                failed=Count("id", filter=Q(state="FAILURE")),
+                retried=Count("id", filter=Q(state="RETRY")),
+            )
         ):
             worker = by_hostname.get(row["worker"])
             if worker:
@@ -440,8 +467,16 @@ class WorkerStatusFilter(admin.SimpleListFilter):
 
 
 class WorkerAdminMixin:
-    list_display: ClassVar[Any] = ["hostname", "status_display", "active_display", "processed_display",
-                                    "succeeded_display", "failed_display", "retried_display", "loadavg_display"]
+    list_display: ClassVar[Any] = [
+        "hostname",
+        "status_display",
+        "active_display",
+        "processed_display",
+        "succeeded_display",
+        "failed_display",
+        "retried_display",
+        "loadavg_display",
+    ]
     list_display_links: ClassVar[Any] = ["hostname"]
     list_filter: ClassVar[Any] = [WorkerStatusFilter]
     search_fields: ClassVar[Any] = ["hostname"]
@@ -456,21 +491,27 @@ class WorkerAdminMixin:
             from django_celeryx.db_models import TaskEvent
 
             db = _get_db()
-            extra_context.update(TaskEvent.objects.using(db).aggregate(
-                total_active=Count("id", filter=Q(state="STARTED")),
-                total_processed=Count("id"),
-                total_succeeded=Count("id", filter=Q(state="SUCCESS")),
-                total_failed=Count("id", filter=Q(state="FAILURE")),
-                total_retried=Count("id", filter=Q(state="RETRY")),
-            ))
+            extra_context.update(
+                TaskEvent.objects.using(db).aggregate(
+                    total_active=Count("id", filter=Q(state="STARTED")),
+                    total_processed=Count("id"),
+                    total_succeeded=Count("id", filter=Q(state="SUCCESS")),
+                    total_failed=Count("id", filter=Q(state="FAILURE")),
+                    total_retried=Count("id", filter=Q(state="RETRY")),
+                )
+            )
         except Exception:
-            extra_context.update({"total_active": 0, "total_processed": 0, "total_succeeded": 0, "total_failed": 0, "total_retried": 0})
+            extra_context.update(
+                {"total_active": 0, "total_processed": 0, "total_succeeded": 0, "total_failed": 0, "total_retried": 0}
+            )
         return super().changelist_view(request, extra_context)  # type: ignore[misc]
 
     def get_queryset(self, request: HttpRequest) -> WorkerQuerySet:
         return WorkerQuerySet()
 
-    def get_search_results(self, request: HttpRequest, queryset: WorkerQuerySet, search_term: str) -> tuple[WorkerQuerySet, bool]:
+    def get_search_results(
+        self, request: HttpRequest, queryset: WorkerQuerySet, search_term: str
+    ) -> tuple[WorkerQuerySet, bool]:
         if not search_term:
             return queryset, False
         term = search_term.lower()
@@ -487,7 +528,8 @@ class WorkerAdminMixin:
         style = WORKER_STATUS_COLORS.get(obj.status, "background:#f3f4f6;color:#374151;")
         return format_html(
             '<span style="{}padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase">{}</span>',
-            style, obj.status,
+            style,
+            obj.status,
         )
 
     @admin.display(description=_("Active"))
@@ -609,7 +651,9 @@ class QueueAdminMixin:
     def get_queryset(self, request: HttpRequest) -> QueueQuerySet:
         return QueueQuerySet()
 
-    def get_search_results(self, request: HttpRequest, queryset: QueueQuerySet, search_term: str) -> tuple[QueueQuerySet, bool]:
+    def get_search_results(
+        self, request: HttpRequest, queryset: QueueQuerySet, search_term: str
+    ) -> tuple[QueueQuerySet, bool]:
         if not search_term:
             return queryset, False
         return QueueQuerySet([q for q in queryset if search_term.lower() in q.name.lower()]), False
@@ -720,7 +764,9 @@ class RegisteredTaskAdminMixin:
     def get_queryset(self, request: HttpRequest) -> RegisteredTaskQuerySet:
         return RegisteredTaskQuerySet()
 
-    def get_search_results(self, request: HttpRequest, queryset: RegisteredTaskQuerySet, search_term: str) -> tuple[RegisteredTaskQuerySet, bool]:
+    def get_search_results(
+        self, request: HttpRequest, queryset: RegisteredTaskQuerySet, search_term: str
+    ) -> tuple[RegisteredTaskQuerySet, bool]:
         if not search_term:
             return queryset, False
         return RegisteredTaskQuerySet([t for t in queryset if search_term.lower() in t.name.lower()]), False

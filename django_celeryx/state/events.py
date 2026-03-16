@@ -25,19 +25,9 @@ _CLEANUP_INTERVAL = 3600.0
 
 
 def _get_celery_app() -> Any:
-    """Get the Celery app instance."""
-    from django_celeryx.settings import celeryx_settings
+    from django_celeryx.helpers import get_celery_app
 
-    if celeryx_settings.CELERY_APP:
-        from importlib import import_module
-
-        module_path, attr = celeryx_settings.CELERY_APP.rsplit(".", 1)
-        module = import_module(module_path)
-        return getattr(module, attr)
-
-    from celery import current_app
-
-    return current_app
+    return get_celery_app()
 
 
 def _handle_task_event(event: dict) -> None:
@@ -62,8 +52,20 @@ def _handle_task_event(event: dict) -> None:
     if event_type in state_map:
         fields["state"] = state_map[event_type]
 
-    for key in ("name", "args", "kwargs", "eta", "expires", "exchange", "routing_key", "retries",
-                "result", "exception", "traceback", "runtime"):
+    for key in (
+        "name",
+        "args",
+        "kwargs",
+        "eta",
+        "expires",
+        "exchange",
+        "routing_key",
+        "retries",
+        "result",
+        "exception",
+        "traceback",
+        "runtime",
+    ):
         if key in event:
             fields[key] = event[key]
 
@@ -149,8 +151,16 @@ class EventListener(threading.Thread):
         logger.info("CeleryX event listener connecting to broker")
 
         handlers = {}
-        for event_type in ("task-sent", "task-received", "task-started", "task-succeeded",
-                           "task-failed", "task-retried", "task-revoked", "task-rejected"):
+        for event_type in (
+            "task-sent",
+            "task-received",
+            "task-started",
+            "task-succeeded",
+            "task-failed",
+            "task-retried",
+            "task-revoked",
+            "task-rejected",
+        ):
             handlers[event_type] = _handle_task_event
         for event_type in ("worker-online", "worker-heartbeat", "worker-offline"):
             handlers[event_type] = _handle_worker_event

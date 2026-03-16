@@ -4,11 +4,9 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
@@ -141,7 +139,10 @@ class Migration(migrations.Migration):
                 ("updated_at", models.FloatField(db_index=True)),
             ],
             options={
-                "indexes": [models.Index(fields=["uuid"], name="celeryx_task_uuid_idx"), models.Index(fields=["-updated_at"], name="celeryx_task_updated_idx")],
+                "indexes": [
+                    models.Index(fields=["uuid"], name="celeryx_task_uuid_idx"),
+                    models.Index(fields=["-updated_at"], name="celeryx_task_updated_idx"),
+                ],
             },
         ),
     ]

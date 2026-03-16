@@ -71,19 +71,25 @@ def task_detail_view(request: HttpRequest, task_id: str) -> HttpResponse:
     can_revoke = task is not None and task.state in ("PENDING", "RECEIVED", "STARTED")
 
     context = admin.site.each_context(request)
-    context.update({
-        "title": f"Task: {task.name or task_id[:8] if task else task_id[:8]}",
-        "task_id": task_id,
-        "task": task,
-        "state_badge": _state_badge(task.state) if task else "",
-        "can_revoke": can_revoke,
-        "opts": {"app_label": "django_celeryx", "model_name": "task", "verbose_name_plural": "Tasks",
-                 "app_config": type("", (), {"verbose_name": "django-celeryx"})()},
-        "received_fmt": _format_ts(task.received) if task else None,
-        "started_fmt": _format_ts(task.started) if task else None,
-        "succeeded_fmt": _format_ts(getattr(task, "succeeded", None)) if task else None,
-        "failed_fmt": _format_ts(getattr(task, "failed", None)) if task else None,
-        "retried_fmt": _format_ts(getattr(task, "retried_at", None)) if task else None,
-        "revoked_fmt": _format_ts(getattr(task, "revoked", None)) if task else None,
-    })
+    context.update(
+        {
+            "title": f"Task: {task.name or task_id[:8] if task else task_id[:8]}",
+            "task_id": task_id,
+            "task": task,
+            "state_badge": _state_badge(task.state) if task else "",
+            "can_revoke": can_revoke,
+            "opts": {
+                "app_label": "django_celeryx",
+                "model_name": "task",
+                "verbose_name_plural": "Tasks",
+                "app_config": type("", (), {"verbose_name": "django-celeryx"})(),
+            },
+            "received_fmt": _format_ts(task.received) if task else None,
+            "started_fmt": _format_ts(task.started) if task else None,
+            "succeeded_fmt": _format_ts(getattr(task, "succeeded", None)) if task else None,
+            "failed_fmt": _format_ts(getattr(task, "failed", None)) if task else None,
+            "retried_fmt": _format_ts(getattr(task, "retried_at", None)) if task else None,
+            "revoked_fmt": _format_ts(getattr(task, "revoked", None)) if task else None,
+        }
+    )
     return render(request, "admin/django_celeryx/task/change_form.html", context)

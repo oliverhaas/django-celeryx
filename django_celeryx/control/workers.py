@@ -9,10 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 def _get_celery_app() -> Any:
-    """Get the Celery app instance."""
-    from django_celeryx.control.tasks import _get_celery_app
+    from django_celeryx.helpers import get_celery_app
 
-    return _get_celery_app()
+    return get_celery_app()
 
 
 def shutdown_worker(hostname: str) -> None:

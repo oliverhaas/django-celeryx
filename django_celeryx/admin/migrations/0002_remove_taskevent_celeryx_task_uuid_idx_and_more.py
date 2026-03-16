@@ -4,32 +4,31 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('django_celeryx', '0001_initial'),
+        ("django_celeryx", "0001_initial"),
     ]
 
     operations = [
         migrations.RemoveIndex(
-            model_name='taskevent',
-            name='celeryx_task_uuid_idx',
+            model_name="taskevent",
+            name="celeryx_task_uuid_idx",
         ),
         migrations.AlterField(
-            model_name='taskevent',
-            name='name',
-            field=models.CharField(blank=True, db_index=True, default='', max_length=500),
+            model_name="taskevent",
+            name="name",
+            field=models.CharField(blank=True, db_index=True, default="", max_length=500),
         ),
         migrations.AlterField(
-            model_name='taskevent',
-            name='uuid',
+            model_name="taskevent",
+            name="uuid",
             field=models.CharField(max_length=255, unique=True),
         ),
         migrations.AddIndex(
-            model_name='taskevent',
-            index=models.Index(fields=['worker', 'state'], name='celeryx_task_worker_state_idx'),
+            model_name="taskevent",
+            index=models.Index(fields=["worker", "state"], name="celeryx_task_worker_state_idx"),
         ),
         migrations.AddIndex(
-            model_name='taskevent',
-            index=models.Index(fields=['name', 'state'], name='celeryx_task_name_state_idx'),
+            model_name="taskevent",
+            index=models.Index(fields=["name", "state"], name="celeryx_task_name_state_idx"),
         ),
     ]
