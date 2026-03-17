@@ -4,6 +4,7 @@
 {% block extrastyle %}
 {{ block.super }}
 <link rel="stylesheet" href="{% static "admin/css/forms.css" %}">
+<link rel="stylesheet" href="{% static "admin/css/changelists.css" %}">
 <style>
     .celeryx-stats {
         display: flex;
@@ -96,45 +97,67 @@
 
 {% block content %}
 <div id="content-main">
-    <div class="celeryx-stats">
-        <div class="celeryx-stat">
-            <div class="celeryx-stat-value">{{ total_tasks }}</div>
-            <div class="celeryx-stat-label">{% translate 'Total' %}</div>
+  <div id="changelist">
+    <div class="changelist-form-container">
+      <div>
+        <div class="celeryx-stats">
+            <div class="celeryx-stat">
+                <div class="celeryx-stat-value">{{ total_tasks }}</div>
+                <div class="celeryx-stat-label">{% translate 'Total' %}</div>
+            </div>
+            <div class="celeryx-stat">
+                <div class="celeryx-stat-value" style="color: #417690;">{{ total_succeeded }}</div>
+                <div class="celeryx-stat-label">{% translate 'Succeeded' %}</div>
+            </div>
+            <div class="celeryx-stat">
+                <div class="celeryx-stat-value" style="color: #ba2121;">{{ total_failed }}</div>
+                <div class="celeryx-stat-label">{% translate 'Failed' %}</div>
+            </div>
+            <div class="celeryx-stat">
+                <div class="celeryx-stat-value">{{ success_rate }}</div>
+                <div class="celeryx-stat-label">{% translate 'Success Rate' %}</div>
+            </div>
+            {% if avg_runtime %}
+            <div class="celeryx-stat">
+                <div class="celeryx-stat-value">{{ avg_runtime }}</div>
+                <div class="celeryx-stat-label">{% translate 'Avg Runtime' %}</div>
+            </div>
+            {% endif %}
         </div>
-        <div class="celeryx-stat">
-            <div class="celeryx-stat-value" style="color: #417690;">{{ total_succeeded }}</div>
-            <div class="celeryx-stat-label">{% translate 'Succeeded' %}</div>
-        </div>
-        <div class="celeryx-stat">
-            <div class="celeryx-stat-value" style="color: #ba2121;">{{ total_failed }}</div>
-            <div class="celeryx-stat-label">{% translate 'Failed' %}</div>
-        </div>
-        <div class="celeryx-stat">
-            <div class="celeryx-stat-value">{{ success_rate }}</div>
-            <div class="celeryx-stat-label">{% translate 'Success Rate' %}</div>
-        </div>
-        {% if avg_runtime %}
-        <div class="celeryx-stat">
-            <div class="celeryx-stat-value">{{ avg_runtime }}</div>
-            <div class="celeryx-stat-label">{% translate 'Avg Runtime' %}</div>
+
+        {% if throughput_svg %}
+        <div class="celeryx-row">
+            <div class="celeryx-chart">
+                {{ throughput_svg|safe }}
+            </div>
         </div>
         {% endif %}
-    </div>
 
-    {% if throughput_svg %}
-    <div class="celeryx-row">
-        <div class="celeryx-chart">
-            {{ throughput_svg|safe }}
+        {% if top_tasks_svg %}
+        <div class="celeryx-row">
+            <div class="celeryx-chart">
+                {{ top_tasks_svg|safe }}
+            </div>
         </div>
-    </div>
-    {% endif %}
+        {% endif %}
+      </div>
 
-    {% if top_tasks_svg %}
-    <div class="celeryx-row">
-        <div class="celeryx-chart">
-            {{ top_tasks_svg|safe }}
-        </div>
+      {% if filters %}
+      <div id="changelist-filter">
+          <h2>{% translate 'Filter' %}</h2>
+          {% for filter in filters %}
+          <h3>{% translate filter.title %}</h3>
+          <ul>
+              {% for item in filter.items %}
+              <li{% if item.active %} class="selected"{% endif %}>
+                  <a href="{{ item.url }}">{{ item.label }}</a>
+              </li>
+              {% endfor %}
+          </ul>
+          {% endfor %}
+      </div>
+      {% endif %}
     </div>
-    {% endif %}
+  </div>
 </div>
 {% endblock %}
