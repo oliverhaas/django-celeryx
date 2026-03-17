@@ -102,6 +102,24 @@ def _chart_failure_rate(qs: Any) -> str:
         return ""
 
 
+def _chart_worker_load(qs: Any) -> str:
+    """Compute tasks per worker JSON."""
+    try:
+        from django.db.models import Count
+
+        rows = list(qs.exclude(worker="").values("worker").annotate(count=Count("id")).order_by("-count")[:10])
+        if not rows:
+            return ""
+        return json.dumps(
+            {
+                "labels": [r["worker"].split("@")[0] if "@" in r["worker"] else r["worker"] for r in rows],
+                "values": [r["count"] for r in rows],
+            }
+        )
+    except Exception:
+        return ""
+
+
 def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
     """Compute all dashboard template context from a (filtered) queryset."""
     from django.db.models import Avg, Count
@@ -169,4 +187,5 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
         "chartjs_top_tasks": chartjs_top_tasks,
         "chartjs_slowest": _chart_slowest(qs),
         "chartjs_failure_rate": _chart_failure_rate(qs),
+        "chartjs_worker_load": _chart_worker_load(qs),
     }

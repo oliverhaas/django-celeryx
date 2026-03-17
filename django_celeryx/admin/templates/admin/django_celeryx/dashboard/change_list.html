@@ -41,6 +41,14 @@
         border-radius: 6px;
         padding: 16px;
         position: relative;
+        height: 300px;
+        overflow: hidden;
+    }
+    .celeryx-chart canvas {
+        width: 100% !important;
+    }
+    .celeryx-chart-wide {
+        height: 320px;
     }
 </style>
 {% endblock %}
@@ -77,22 +85,21 @@
 
     {% if chartjs_throughput %}
     <div class="celeryx-row">
-        <div class="celeryx-chart"><canvas id="cx-throughput" height="286"></canvas></div>
+        <div class="celeryx-chart celeryx-chart-wide"><canvas id="cx-throughput"></canvas></div>
     </div>
-    <div class="celeryx-row">
-        <div class="celeryx-chart"><canvas id="cx-tasks" height="286"></canvas></div>
+    <div class="celeryx-row" style="display:flex; gap:16px;">
+        <div class="celeryx-chart" style="flex:1; min-width:0;"><canvas id="cx-tasks"></canvas></div>
+        {% if chartjs_worker_load %}
+        <div class="celeryx-chart" style="flex:1; min-width:0;"><canvas id="cx-workers"></canvas></div>
+        {% endif %}
     </div>
-    {% endif %}
-
-    {% if chartjs_slowest %}
-    <div class="celeryx-row">
-        <div class="celeryx-chart"><canvas id="cx-slowest" height="286"></canvas></div>
-    </div>
-    {% endif %}
-
-    {% if chartjs_failure_rate %}
-    <div class="celeryx-row">
-        <div class="celeryx-chart"><canvas id="cx-failures" height="286"></canvas></div>
+    <div class="celeryx-row" style="display:flex; gap:16px;">
+        {% if chartjs_slowest %}
+        <div class="celeryx-chart" style="flex:1; min-width:0;"><canvas id="cx-slowest"></canvas></div>
+        {% endif %}
+        {% if chartjs_failure_rate %}
+        <div class="celeryx-chart" style="flex:1; min-width:0;"><canvas id="cx-failures"></canvas></div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -168,49 +175,41 @@
             }
         });
 
-        /* ---- Slowest Tasks (avg runtime ± stddev) ---- */
+        /* ---- Slowest Tasks (avg runtime, floating bar = ±stddev range) ---- */
         {% if chartjs_slowest %}
         (function() {
             const sl = {{ chartjs_slowest|safe }};
-            // Error bar data: [avg-std, avg+std] pairs for floating bar
-            const errBars = sl.avg.map((a, i) => [Math.max(0, a - sl.std[i]), a + sl.std[i]]);
+            // Ensure a minimum visual width so zero-stddev bars are still visible
+            const maxAvg = Math.max(...sl.avg);
+            const minSpan = maxAvg * 0.03;
+            const ranges = sl.avg.map((a, i) => {
+                const half = Math.max(sl.std[i], minSpan);
+                return [Math.max(0, a - half), a + half];
+            });
 
             new Chart(document.getElementById('cx-slowest'), {
                 type: 'bar',
                 data: {
                     labels: sl.labels,
-                    datasets: [
-                        {
-                            label: 'Avg Runtime (s)',
-                            data: sl.avg,
-                            backgroundColor: C.warn,
-                            borderRadius: 3,
-                            borderSkipped: false,
-                            barPercentage: 0.5,
-                        },
-                        {
-                            label: '± Std Dev',
-                            data: errBars,
-                            backgroundColor: isDark ? 'rgba(240,173,78,0.25)' : 'rgba(224,156,63,0.25)',
-                            borderColor: C.warn,
-                            borderWidth: 1,
-                            borderRadius: 2,
-                            borderSkipped: false,
-                            barPercentage: 0.3,
-                        }
-                    ]
+                    datasets: [{
+                        data: ranges,
+                        backgroundColor: C.warn,
+                        borderRadius: 3,
+                        borderSkipped: false,
+                        barPercentage: 0.6,
+                    }]
                 },
                 options: {
                     indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                     plugins: {
-                        title: mkTitle('Slowest Tasks (avg runtime ± stddev)'),
-                        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, color: C.text, font: { size: 12 } } },
+                        title: mkTitle('Slowest Tasks (runtime range: avg ± stddev)'),
+                        legend: { display: false },
                         tooltip: {
                             ...tip,
                             callbacks: {
                                 label: function(ctx) {
-                                    if (ctx.datasetIndex === 0) return ' Avg: ' + ctx.raw.toFixed(3) + 's';
-                                    return ' Range: ' + ctx.raw[0].toFixed(3) + 's – ' + ctx.raw[1].toFixed(3) + 's';
+                                    const i = ctx.dataIndex;
+                                    return ' Avg: ' + sl.avg[i].toFixed(3) + 's  (±' + sl.std[i].toFixed(3) + 's)';
                                 }
                             }
                         }
@@ -256,6 +255,24 @@
                     },
                     scales: {
                         x: { beginAtZero: true, max: 100, ticks: { color: C.text, font: { size: 11 }, callback: v => v + '%' }, grid: { color: C.grid }, border: { display: false } },
+                        y: { ticks: { color: C.barText, font: { size: 12 } }, grid: { display: false }, border: { display: false } }
+                    }
+                }
+            });
+        })();
+        {% endif %}
+        /* ---- Worker Load ---- */
+        {% if chartjs_worker_load %}
+        (function() {
+            const wl = {{ chartjs_worker_load|safe }};
+            new Chart(document.getElementById('cx-workers'), {
+                type: 'bar',
+                data: { labels: wl.labels, datasets: [{ data: wl.values, backgroundColor: C.ok, borderRadius: 3, borderSkipped: false, barPercentage: 0.7 }] },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { title: mkTitle('Worker Load (tasks processed)'), legend: { display: false }, tooltip: tip },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 } }, grid: { color: C.grid }, border: { display: false } },
                         y: { ticks: { color: C.barText, font: { size: 12 } }, grid: { display: false }, border: { display: false } }
                     }
                 }
