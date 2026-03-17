@@ -278,7 +278,7 @@ else:
 
 
 @admin.register(Dashboard)
-class DashboardAdmin(_DashboardBase):  # type: ignore[misc]
+class DashboardAdmin(LiveUpdateMixin, _DashboardBase):  # type: ignore[misc]
     """Dashboard view using native Django admin filters."""
 
     change_list_template = "admin/django_celeryx/dashboard/change_list.html"  # type: ignore[misc]
