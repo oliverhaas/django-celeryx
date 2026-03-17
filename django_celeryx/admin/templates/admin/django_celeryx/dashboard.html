@@ -54,16 +54,21 @@
         width: 100%;
         height: auto;
     }
-    .celeryx-pie {
-        display: flex;
-        align-items: center;
-    }
-    .celeryx-pie svg {
-        max-height: 280px;
-    }
     /* Override Pygal's embedded text styling to match admin */
     .celeryx-chart .pygal-chart text {
         font-family: 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    }
+    /* Make Pygal guide lines very subtle */
+    .celeryx-chart .pygal-chart .guides line,
+    .celeryx-chart .pygal-chart .axis line {
+        stroke: #eee !important;
+        stroke-dasharray: 2,6 !important;
+        stroke-width: 0.5 !important;
+    }
+    .celeryx-chart .pygal-chart .axis .major line {
+        stroke: #ddd !important;
+        stroke-dasharray: none !important;
+        stroke-width: 0.5 !important;
     }
     /* Fix Pygal tooltip readability */
     .celeryx-chart .pygal-chart .tooltip rect {
@@ -116,22 +121,7 @@
         {% endif %}
     </div>
 
-    {% if state_pie_svg and throughput_svg %}
-    <div class="celeryx-row" style="align-items: start;">
-        <div class="celeryx-chart celeryx-pie" style="flex: 0 0 320px; max-width: 320px;">
-            {{ state_pie_svg|safe }}
-        </div>
-        <div class="celeryx-chart" style="flex: 1;">
-            {{ throughput_svg|safe }}
-        </div>
-    </div>
-    {% elif state_pie_svg %}
-    <div class="celeryx-row">
-        <div class="celeryx-chart">
-            {{ state_pie_svg|safe }}
-        </div>
-    </div>
-    {% elif throughput_svg %}
+    {% if throughput_svg %}
     <div class="celeryx-row">
         <div class="celeryx-chart">
             {{ throughput_svg|safe }}

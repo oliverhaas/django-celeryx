@@ -166,8 +166,10 @@ def _chart_style(colors: tuple[str, ...] | None = None) -> object:
         value_font_size=12,
         legend_font_size=13,
         tooltip_font_size=12,
-        guide_stroke_color="#e0e0e0",
-        major_guide_stroke_color="#ccc",
+        guide_stroke_color="#eee",
+        guide_stroke_dasharray="2,4",
+        major_guide_stroke_color="#ddd",
+        major_guide_stroke_dasharray="2,4",
     )
 
 
@@ -255,7 +257,6 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     success_rate = f"{total_succeeded / total * 100:.1f}%" if total > 0 else "-"
 
     # Build charts
-    state_pie_svg = _build_state_pie(state_counts) if state_counts else ""
     hourly_data = _get_hourly_throughput()
     throughput_svg = _build_throughput_chart(hourly_data) if hourly_data else ""
     top_tasks_svg = _build_top_tasks_bar(top_tasks) if top_tasks else ""
@@ -275,7 +276,6 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
             "total_failed": total_failed,
             "success_rate": success_rate,
             "avg_runtime": avg_runtime,
-            "state_pie_svg": state_pie_svg,
             "throughput_svg": throughput_svg,
             "top_tasks_svg": top_tasks_svg,
         }
