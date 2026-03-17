@@ -84,6 +84,7 @@ def _build_throughput_chart(hourly_data: list[tuple[str, int, int]]) -> str:
         fill=True,
         show_minor_x_labels=False,
         x_labels_major_every=4,
+        height=250,
     )
     chart = pygal.Line(**config)
     chart.title = "Throughput (last 24h)"

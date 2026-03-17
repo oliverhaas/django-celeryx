@@ -65,6 +65,14 @@
     .celeryx-chart .pygal-chart text {
         font-family: 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     }
+    /* Fix Pygal tooltip readability */
+    .celeryx-chart .pygal-chart .tooltip rect {
+        fill: #fff !important;
+        stroke: #ccc !important;
+    }
+    .celeryx-chart .pygal-chart .tooltip text {
+        fill: #333 !important;
+    }
     @media (max-width: 900px) {
         .celeryx-row { flex-direction: column; }
     }
@@ -83,11 +91,6 @@
 
 {% block content %}
 <div id="content-main">
-    <ul class="object-tools">
-        <li><a href="{% url 'admin:django_celeryx_task_changelist' %}">{% translate "Tasks" %}</a></li>
-        <li><a href="{% url 'admin:django_celeryx_worker_changelist' %}">{% translate "Workers" %}</a></li>
-    </ul>
-
     <div class="celeryx-stats">
         <div class="celeryx-stat">
             <div class="celeryx-stat-value">{{ total_tasks }}</div>
