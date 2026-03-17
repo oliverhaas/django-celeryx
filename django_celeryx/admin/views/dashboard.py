@@ -6,31 +6,41 @@ import datetime
 import json
 from typing import Any
 
+# Period -> (total_seconds, target_bins, label_format)
+_PERIOD_CONFIG: dict[str, tuple[int, int, str]] = {
+    "today": (86400, 24, "%H:%M"),
+    "7d": (7 * 86400, 56, "%a %H:%M"),
+    "30d": (30 * 86400, 60, "%b %d"),
+}
+_DEFAULT_PERIOD = ("", (86400, 24, "%H:%M"))
 
-def _get_hourly_throughput(qs: Any) -> list[tuple[str, int, int]]:
-    """Get hourly succeeded/failed counts for the last 24h from a base queryset."""
+
+def _get_throughput(qs: Any, period: str) -> list[tuple[str, int, int]]:
+    """Get succeeded/failed counts binned over the active time period."""
     try:
         from django.db.models import Count, Q
 
+        total_seconds, num_bins, fmt = _PERIOD_CONFIG.get(period, _DEFAULT_PERIOD[1])
         now = datetime.datetime.now(tz=datetime.UTC)
+        bin_seconds = total_seconds / num_bins
         result = []
 
-        for hours_ago in range(23, -1, -1):
-            start = now - datetime.timedelta(hours=hours_ago + 1)
-            end = now - datetime.timedelta(hours=hours_ago)
+        for i in range(num_bins):
+            start = now - datetime.timedelta(seconds=(num_bins - i) * bin_seconds)
+            end = now - datetime.timedelta(seconds=(num_bins - i - 1) * bin_seconds)
 
             agg = qs.filter(updated_at__gte=start.timestamp(), updated_at__lt=end.timestamp()).aggregate(
                 succeeded=Count("id", filter=Q(state="SUCCESS")),
                 failed=Count("id", filter=Q(state="FAILURE")),
             )
-            result.append((end.strftime("%H:%M"), agg["succeeded"], agg["failed"]))
+            result.append((end.strftime(fmt), agg["succeeded"], agg["failed"]))
 
         return result
     except Exception:
         return []
 
 
-def compute_dashboard_context(qs: Any) -> dict[str, Any]:
+def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
     """Compute all dashboard template context from a (filtered) queryset."""
     from django.db.models import Avg, Count
 
@@ -62,23 +72,24 @@ def compute_dashboard_context(qs: Any) -> dict[str, Any]:
     total_succeeded = state_counts.get("SUCCESS", 0)
     total_failed = state_counts.get("FAILURE", 0)
 
-    # Hourly throughput data
-    hourly_data = _get_hourly_throughput(qs)
+    # Throughput binned data
+    throughput_data = _get_throughput(qs, period)
 
-    # Chart.js JSON data
+    # Chart.js JSON
     chartjs_throughput = ""
-    if hourly_data:
+    if throughput_data:
         chartjs_throughput = json.dumps(
             {
-                "labels": [row[0] for row in hourly_data],
-                "succeeded": [row[1] for row in hourly_data],
-                "failed": [row[2] for row in hourly_data],
+                "labels": [row[0] for row in throughput_data],
+                "succeeded": [row[1] for row in throughput_data],
+                "failed": [row[2] for row in throughput_data],
             }
         )
 
     chartjs_top_tasks = ""
     if top_tasks:
-        items = sorted(top_tasks[:10], key=lambda x: x[1])
+        # Reverse so biggest is at top in horizontal bar chart
+        items = list(reversed(top_tasks[:10]))
         labels = []
         for name, _ in items:
             parts = name.rsplit(".", 2)

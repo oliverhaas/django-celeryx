@@ -318,6 +318,6 @@ class DashboardAdmin(_DashboardBase):  # type: ignore[misc]
             f = f_cls(request, request.GET.copy(), _TaskState, self)
             qs = f.queryset(request, qs) or qs
 
-        extra_context.update(compute_dashboard_context(qs))
+        extra_context.update(compute_dashboard_context(qs, period=request.GET.get("period", "")))
 
         return super().changelist_view(request, extra_context)
