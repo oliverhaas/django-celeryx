@@ -40,6 +40,68 @@ def _get_throughput(qs: Any, period: str) -> list[tuple[str, int, int]]:
         return []
 
 
+def _short_name(name: str) -> str:
+    """Shorten a dotted task name to last 2 segments."""
+    parts = name.rsplit(".", 2)
+    return ".".join(parts[-2:]) if len(parts) > 1 else name
+
+
+def _chart_slowest(qs: Any) -> str:
+    """Compute slowest tasks JSON (avg runtime + stddev)."""
+    try:
+        from django.db.models import Avg, Count, StdDev
+
+        rows = list(
+            qs.exclude(name="")
+            .filter(runtime__isnull=False)
+            .values("name")
+            .annotate(avg_rt=Avg("runtime"), std_rt=StdDev("runtime"), cnt=Count("id"))
+            .filter(cnt__gte=2)
+            .order_by("-avg_rt")[:10]
+        )
+        if not rows:
+            return ""
+        return json.dumps(
+            {
+                "labels": [_short_name(r["name"]) for r in rows],
+                "avg": [round(r["avg_rt"], 3) for r in rows],
+                "std": [round(r["std_rt"] or 0, 3) for r in rows],
+            }
+        )
+    except Exception:
+        return ""
+
+
+def _chart_failure_rate(qs: Any) -> str:
+    """Compute failure rate by task JSON."""
+    try:
+        from django.db.models import Count, Q
+
+        rows = list(
+            qs.exclude(name="")
+            .values("name")
+            .annotate(total=Count("id"), failed=Count("id", filter=Q(state="FAILURE")))
+            .filter(total__gte=2)
+            .order_by("-total")[:15]
+        )
+        rated = sorted(
+            [(r["name"], r["failed"] / r["total"] * 100, r["total"]) for r in rows if r["failed"] > 0],
+            key=lambda x: x[1],
+            reverse=True,
+        )[:10]
+        if not rated:
+            return ""
+        return json.dumps(
+            {
+                "labels": [_short_name(n) for n, _, _ in rated],
+                "rates": [round(r, 1) for _, r, _ in rated],
+                "counts": [f"{c} tasks" for _, _, c in rated],
+            }
+        )
+    except Exception:
+        return ""
+
+
 def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
     """Compute all dashboard template context from a (filtered) queryset."""
     from django.db.models import Avg, Count
@@ -72,31 +134,27 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
     total_succeeded = state_counts.get("SUCCESS", 0)
     total_failed = state_counts.get("FAILURE", 0)
 
-    # Throughput binned data
+    # Throughput
     throughput_data = _get_throughput(qs, period)
-
-    # Chart.js JSON
-    chartjs_throughput = ""
-    if throughput_data:
-        chartjs_throughput = json.dumps(
+    chartjs_throughput = (
+        json.dumps(
             {
-                "labels": [row[0] for row in throughput_data],
-                "succeeded": [row[1] for row in throughput_data],
-                "failed": [row[2] for row in throughput_data],
+                "labels": [r[0] for r in throughput_data],
+                "succeeded": [r[1] for r in throughput_data],
+                "failed": [r[2] for r in throughput_data],
             }
         )
+        if throughput_data
+        else ""
+    )
 
+    # Top tasks
     chartjs_top_tasks = ""
     if top_tasks:
-        # Reverse so biggest is at top in horizontal bar chart
-        items = list(reversed(top_tasks[:10]))
-        labels = []
-        for name, _ in items:
-            parts = name.rsplit(".", 2)
-            labels.append(".".join(parts[-2:]) if len(parts) > 1 else name)
+        items = top_tasks[:10]
         chartjs_top_tasks = json.dumps(
             {
-                "labels": labels,
+                "labels": [_short_name(n) for n, _ in items],
                 "values": [c for _, c in items],
             }
         )
@@ -109,4 +167,6 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
         "avg_runtime": avg_runtime,
         "chartjs_throughput": chartjs_throughput,
         "chartjs_top_tasks": chartjs_top_tasks,
+        "chartjs_slowest": _chart_slowest(qs),
+        "chartjs_failure_rate": _chart_failure_rate(qs),
     }

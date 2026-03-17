@@ -82,11 +82,24 @@
     <div class="celeryx-row">
         <div class="celeryx-chart"><canvas id="cx-tasks" height="286"></canvas></div>
     </div>
+    {% endif %}
 
+    {% if chartjs_slowest %}
+    <div class="celeryx-row">
+        <div class="celeryx-chart"><canvas id="cx-slowest" height="286"></canvas></div>
+    </div>
+    {% endif %}
+
+    {% if chartjs_failure_rate %}
+    <div class="celeryx-row">
+        <div class="celeryx-chart"><canvas id="cx-failures" height="286"></canvas></div>
+    </div>
+    {% endif %}
+
+    {% if chartjs_throughput %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script>
     (function() {
-        /* ---- Detect Django admin dark mode ---- */
         const isDark = document.documentElement.dataset.theme === 'dark' ||
             (document.documentElement.dataset.theme === 'auto' &&
              window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -96,146 +109,159 @@
             okFill:  isDark ? 'rgba(93,173,226,0.15)' : 'rgba(65,118,144,0.2)',
             err:     isDark ? '#e74c3c' : '#ba2121',
             errFill: isDark ? 'rgba(231,76,60,0.15)' : 'rgba(186,33,33,0.2)',
+            warn:    isDark ? '#f0ad4e' : '#e09c3f',
             text:    isDark ? '#ccc' : '#666',
             grid:    isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
             title:   isDark ? '#ddd' : '#417690',
             bar:     isDark ? '#5dade2' : '#417690',
             barText: isDark ? '#5dade2' : '#417690',
         };
+        const tip = {
+            backgroundColor: isDark ? '#333' : '#fff',
+            titleColor: isDark ? '#eee' : '#333',
+            bodyColor: isDark ? '#ccc' : '#666',
+            borderColor: isDark ? '#555' : '#ddd',
+            borderWidth: 1, cornerRadius: 6, padding: 10,
+        };
+        const mkTitle = (text) => ({ display: true, text, color: C.title, font: { size: 14, weight: '500' }, padding: { bottom: 12 } });
 
-        /* ---- Apply accent colors to stat cards via CSS ---- */
         document.querySelectorAll('.celeryx-color-ok').forEach(el => el.style.color = C.ok);
         document.querySelectorAll('.celeryx-color-err').forEach(el => el.style.color = C.err);
+
+        Chart.defaults.font = { ...Chart.defaults.font, family: "'Segoe UI', system-ui, Roboto, sans-serif" };
 
         const tp = {{ chartjs_throughput|safe }};
         const tk = {{ chartjs_top_tasks|safe }};
 
-        const defaultFont = { family: "'Segoe UI', system-ui, Roboto, sans-serif" };
-        Chart.defaults.font = { ...Chart.defaults.font, ...defaultFont };
-
-        /* ---- Throughput (area chart) ---- */
+        /* ---- Throughput ---- */
         new Chart(document.getElementById('cx-throughput'), {
             type: 'line',
             data: {
                 labels: tp.labels,
                 datasets: [
-                    {
-                        label: 'Succeeded',
-                        data: tp.succeeded,
-                        borderColor: C.ok,
-                        backgroundColor: C.okFill,
-                        fill: true,
-                        tension: 0.35,
-                        pointRadius: 0,
-                        pointHitRadius: 10,
-                        borderWidth: 2,
-                    },
-                    {
-                        label: 'Failed',
-                        data: tp.failed,
-                        borderColor: C.err,
-                        backgroundColor: C.errFill,
-                        fill: true,
-                        tension: 0.35,
-                        pointRadius: 0,
-                        pointHitRadius: 10,
-                        borderWidth: 2,
-                    }
+                    { label: 'Succeeded', data: tp.succeeded, borderColor: C.ok, backgroundColor: C.okFill, fill: true, tension: 0.35, pointRadius: 0, pointHitRadius: 10, borderWidth: 2 },
+                    { label: 'Failed', data: tp.failed, borderColor: C.err, backgroundColor: C.errFill, fill: true, tension: 0.35, pointRadius: 0, pointHitRadius: 10, borderWidth: 2 }
                 ]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Throughput (last 24h)',
-                        color: C.title,
-                        font: { size: 14, weight: '500' },
-                        padding: { bottom: 12 },
-                    },
-                    legend: {
-                        position: 'bottom',
-                        labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, color: C.text, font: { size: 12 } }
-                    },
-                    tooltip: {
-                        backgroundColor: isDark ? '#333' : '#fff',
-                        titleColor: isDark ? '#eee' : '#333',
-                        bodyColor: isDark ? '#ccc' : '#666',
-                        borderColor: isDark ? '#555' : '#ddd',
-                        borderWidth: 1,
-                        cornerRadius: 6,
-                        padding: 10,
-                    }
-                },
+                plugins: { title: mkTitle('Throughput'), legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, color: C.text, font: { size: 12 } } }, tooltip: tip },
                 scales: {
-                    x: {
-                        ticks: { maxTicksLimit: 8, color: C.text, font: { size: 11 } },
-                        grid: { display: false },
-                        border: { display: false },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { color: C.text, font: { size: 11 } },
-                        grid: { color: C.grid },
-                        border: { display: false },
-                    }
+                    x: { ticks: { maxTicksLimit: 8, color: C.text, font: { size: 11 } }, grid: { display: false }, border: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 } }, grid: { color: C.grid }, border: { display: false } }
                 }
             }
         });
 
-        /* ---- Top Tasks (horizontal bar) ---- */
+        /* ---- Top Tasks ---- */
         new Chart(document.getElementById('cx-tasks'), {
             type: 'bar',
-            data: {
-                labels: tk.labels,
-                datasets: [{
-                    data: tk.values,
-                    backgroundColor: C.bar,
-                    borderRadius: 3,
-                    borderSkipped: false,
-                    barPercentage: 0.7,
-                }]
-            },
+            data: { labels: tk.labels, datasets: [{ data: tk.values, backgroundColor: C.bar, borderRadius: 3, borderSkipped: false, barPercentage: 0.7 }] },
             options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Top Tasks (by count)',
-                        color: C.title,
-                        font: { size: 14, weight: '500' },
-                        padding: { bottom: 12 },
-                    },
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: isDark ? '#333' : '#fff',
-                        titleColor: isDark ? '#eee' : '#333',
-                        bodyColor: isDark ? '#ccc' : '#666',
-                        borderColor: isDark ? '#555' : '#ddd',
-                        borderWidth: 1,
-                        cornerRadius: 6,
-                        padding: 10,
-                    }
-                },
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { title: mkTitle('Top Tasks (by count)'), legend: { display: false }, tooltip: tip },
                 scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: { color: C.text, font: { size: 11 } },
-                        grid: { color: C.grid },
-                        border: { display: false },
-                    },
-                    y: {
-                        ticks: { color: C.barText, font: { size: 12 } },
-                        grid: { display: false },
-                        border: { display: false },
-                    }
+                    x: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 } }, grid: { color: C.grid }, border: { display: false } },
+                    y: { ticks: { color: C.barText, font: { size: 12 } }, grid: { display: false }, border: { display: false } }
                 }
             }
         });
+
+        /* ---- Slowest Tasks (avg runtime ± stddev) ---- */
+        {% if chartjs_slowest %}
+        (function() {
+            const sl = {{ chartjs_slowest|safe }};
+            // Error bar data: [avg-std, avg+std] pairs for floating bar
+            const errBars = sl.avg.map((a, i) => [Math.max(0, a - sl.std[i]), a + sl.std[i]]);
+
+            new Chart(document.getElementById('cx-slowest'), {
+                type: 'bar',
+                data: {
+                    labels: sl.labels,
+                    datasets: [
+                        {
+                            label: 'Avg Runtime (s)',
+                            data: sl.avg,
+                            backgroundColor: C.warn,
+                            borderRadius: 3,
+                            borderSkipped: false,
+                            barPercentage: 0.5,
+                        },
+                        {
+                            label: '± Std Dev',
+                            data: errBars,
+                            backgroundColor: isDark ? 'rgba(240,173,78,0.25)' : 'rgba(224,156,63,0.25)',
+                            borderColor: C.warn,
+                            borderWidth: 1,
+                            borderRadius: 2,
+                            borderSkipped: false,
+                            barPercentage: 0.3,
+                        }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        title: mkTitle('Slowest Tasks (avg runtime ± stddev)'),
+                        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, color: C.text, font: { size: 12 } } },
+                        tooltip: {
+                            ...tip,
+                            callbacks: {
+                                label: function(ctx) {
+                                    if (ctx.datasetIndex === 0) return ' Avg: ' + ctx.raw.toFixed(3) + 's';
+                                    return ' Range: ' + ctx.raw[0].toFixed(3) + 's – ' + ctx.raw[1].toFixed(3) + 's';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 }, callback: v => v + 's' }, grid: { color: C.grid }, border: { display: false } },
+                        y: { ticks: { color: C.barText, font: { size: 12 } }, grid: { display: false }, border: { display: false } }
+                    }
+                }
+            });
+        })();
+        {% endif %}
+
+        /* ---- Failure Rate by Task ---- */
+        {% if chartjs_failure_rate %}
+        (function() {
+            const fr = {{ chartjs_failure_rate|safe }};
+            new Chart(document.getElementById('cx-failures'), {
+                type: 'bar',
+                data: {
+                    labels: fr.labels,
+                    datasets: [{
+                        data: fr.rates,
+                        backgroundColor: C.err,
+                        borderRadius: 3,
+                        borderSkipped: false,
+                        barPercentage: 0.7,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        title: mkTitle('Failure Rate by Task'),
+                        legend: { display: false },
+                        tooltip: {
+                            ...tip,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ' ' + ctx.raw + '% (' + fr.counts[ctx.dataIndex] + ')';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { beginAtZero: true, max: 100, ticks: { color: C.text, font: { size: 11 }, callback: v => v + '%' }, grid: { color: C.grid }, border: { display: false } },
+                        y: { ticks: { color: C.barText, font: { size: 12 } }, grid: { display: false }, border: { display: false } }
+                    }
+                }
+            });
+        })();
+        {% endif %}
     })();
     </script>
     {% endif %}
