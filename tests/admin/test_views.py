@@ -307,18 +307,13 @@ class TestApplyTaskView:
         response = admin_client.get(url)
         assert b"Send Task" in response.content
 
-    def test_task_list_has_dashboard_link(self, admin_client):
-        url = reverse("admin:django_celeryx_task_changelist")
-        response = admin_client.get(url)
-        assert b"Dashboard" in response.content
-
 
 @pytest.mark.django_db
 class TestDashboardView:
     """Tests for the dashboard view with Pygal charts."""
 
     def test_dashboard_returns_200_empty(self, admin_client):
-        url = reverse("admin:django_celeryx_dashboard")
+        url = reverse("admin:django_celeryx_dashboard_changelist")
         response = admin_client.get(url)
         assert response.status_code == 200
         assert b"Dashboard" in response.content
@@ -329,7 +324,7 @@ class TestDashboardView:
         TaskState.objects.create(uuid="d2", name="a.task", state="SUCCESS", runtime=1.5, updated_at=now)
         TaskState.objects.create(uuid="d3", name="b.task", state="FAILURE", updated_at=now)
 
-        url = reverse("admin:django_celeryx_dashboard")
+        url = reverse("admin:django_celeryx_dashboard_changelist")
         response = admin_client.get(url)
         assert response.status_code == 200
         content = response.content.decode()
@@ -341,14 +336,14 @@ class TestDashboardView:
         TaskState.objects.create(uuid="c1", name="x.task", state="SUCCESS", updated_at=now)
         TaskState.objects.create(uuid="c2", name="x.task", state="FAILURE", updated_at=now)
 
-        url = reverse("admin:django_celeryx_dashboard")
+        url = reverse("admin:django_celeryx_dashboard_changelist")
         response = admin_client.get(url)
         content = response.content.decode()
         assert "<svg" in content
 
     def test_dashboard_requires_auth(self, db):
         client = Client()
-        url = reverse("admin:django_celeryx_dashboard")
+        url = reverse("admin:django_celeryx_dashboard_changelist")
         response = client.get(url)
         assert response.status_code == 302
 

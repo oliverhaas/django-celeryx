@@ -77,11 +77,6 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):  # type: ignore[mi
                 name="django_celeryx_task_apply",
             ),
             path(
-                "dashboard/",
-                self.admin_site.admin_view(self._dashboard_view),
-                name="django_celeryx_dashboard",
-            ),
-            path(
                 "<path:object_id>/change/",
                 self.admin_site.admin_view(self.change_view),
                 name="django_celeryx_task_change",
@@ -93,11 +88,6 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):  # type: ignore[mi
         from django_celeryx.admin.views.apply_task import apply_task_view
 
         return apply_task_view(request)
-
-    def _dashboard_view(self, request: HttpRequest) -> HttpResponse:
-        from django_celeryx.admin.views.dashboard import dashboard_view
-
-        return dashboard_view(request)
 
     def change_view(
         self,
@@ -204,7 +194,14 @@ class RegisteredTaskAdmin(RegisteredTaskAdminMixin, ModelAdmin):  # type: ignore
 
 @admin.register(Dashboard)
 class DashboardAdmin(ModelAdmin):  # type: ignore[misc]
-    """Sidebar entry that redirects to the dashboard view."""
+    """Dashboard view using native Django admin filters."""
+
+    change_list_template = "admin/django_celeryx/dashboard/change_list.html"  # type: ignore[misc]
+
+    def get_list_filter(self, request: HttpRequest) -> list:
+        from django_celeryx.admin.admin import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
+
+        return [DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter]
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -212,11 +209,30 @@ class DashboardAdmin(ModelAdmin):  # type: ignore[misc]
     def has_delete_permission(self, request: HttpRequest, obj: Dashboard | None = None) -> bool:
         return False
 
+    def has_change_permission(self, request: HttpRequest, obj: Dashboard | None = None) -> bool:
+        return False
+
+    def get_queryset(self, request: HttpRequest) -> Any:
+        from django_celeryx.db_models import TaskState
+        from django_celeryx.settings import get_db_alias
+
+        return TaskState.objects.using(get_db_alias()).all()
+
     def changelist_view(
         self,
         request: HttpRequest,
         extra_context: dict[str, Any] | None = None,
     ) -> HttpResponse:
-        from django.shortcuts import redirect
+        extra_context = extra_context or {}
+        from django_celeryx.admin.admin import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
+        from django_celeryx.admin.views.dashboard import compute_dashboard_context
+        from django_celeryx.db_models import TaskState
+        from django_celeryx.settings import get_db_alias
 
-        return redirect("admin:django_celeryx_dashboard")
+        qs = TaskState.objects.using(get_db_alias()).all()
+        for f_cls in [DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter]:
+            f = f_cls(request, request.GET, TaskState, self)
+            qs = f.queryset(request, qs) or qs
+
+        extra_context.update(compute_dashboard_context(qs))
+        return super().changelist_view(request, extra_context)

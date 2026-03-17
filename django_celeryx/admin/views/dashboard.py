@@ -3,13 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import TYPE_CHECKING, Any
-
-from django.contrib import admin
-from django.shortcuts import render
-
-if TYPE_CHECKING:
-    from django.http import HttpRequest, HttpResponse
+from typing import Any
 
 
 def _common_config() -> dict[str, Any]:
@@ -196,83 +190,8 @@ def _get_hourly_throughput(qs: Any) -> list[tuple[str, int, int]]:
         return []
 
 
-# Time period filter choices: (param_value, label, timedelta)
-_PERIOD_CHOICES = [
-    ("today", "Today", datetime.timedelta(days=1)),
-    ("7d", "Last 7 days", datetime.timedelta(days=7)),
-    ("30d", "Last 30 days", datetime.timedelta(days=30)),
-]
-
-
-def _build_filter_url(request: Any, **overrides: str | None) -> str:
-    """Build a URL preserving current query params but overriding specified ones."""
-    from urllib.parse import urlencode
-
-    params = dict(request.GET.items())
-    for key, value in overrides.items():
-        if value is None:
-            params.pop(key, None)
-        else:
-            params[key] = value
-    qs = urlencode(params)
-    return f"?{qs}" if qs else "?"
-
-
-def _apply_filters(request: Any, qs: Any) -> Any:
-    """Apply queue, worker, and time period filters from query params."""
-    if queue := request.GET.get("queue", ""):
-        qs = qs.filter(routing_key=queue)
-    if worker := request.GET.get("worker", ""):
-        qs = qs.filter(worker=worker)
-    if period := request.GET.get("period", ""):
-        for value, _label, delta in _PERIOD_CHOICES:
-            if period == value:
-                cutoff = datetime.datetime.now(tz=datetime.UTC) - delta
-                qs = qs.filter(updated_at__gte=cutoff.timestamp())
-                break
-    return qs
-
-
-def _build_sidebar_filters(request: Any, all_qs: Any) -> list[dict[str, Any]]:
-    """Build filter sidebar choices for time period, queue, and worker."""
-    active_queue = request.GET.get("queue", "")
-    active_worker = request.GET.get("worker", "")
-    active_period = request.GET.get("period", "")
-
-    filters: list[dict[str, Any]] = []
-
-    # Time period
-    period_items = [{"label": "All time", "url": _build_filter_url(request, period=None), "active": not active_period}]
-    period_items.extend(
-        {"label": label, "url": _build_filter_url(request, period=value), "active": active_period == value}
-        for value, label, _delta in _PERIOD_CHOICES
-    )
-    filters.append({"title": "Time period", "items": period_items})
-
-    # Queue
-    queue_choices = sorted(all_qs.exclude(routing_key="").values_list("routing_key", flat=True).distinct())
-    if queue_choices:
-        queue_items = [{"label": "All", "url": _build_filter_url(request, queue=None), "active": not active_queue}]
-        queue_items.extend(
-            {"label": q, "url": _build_filter_url(request, queue=q), "active": active_queue == q} for q in queue_choices
-        )
-        filters.append({"title": "Queue", "items": queue_items})
-
-    # Worker
-    worker_choices = sorted(all_qs.exclude(worker="").values_list("worker", flat=True).distinct())
-    if worker_choices:
-        worker_items = [{"label": "All", "url": _build_filter_url(request, worker=None), "active": not active_worker}]
-        worker_items.extend(
-            {"label": w, "url": _build_filter_url(request, worker=w), "active": active_worker == w}
-            for w in worker_choices
-        )
-        filters.append({"title": "Worker", "items": worker_items})
-
-    return filters
-
-
-def _compute_stats(qs: Any) -> dict[str, Any]:
-    """Compute dashboard statistics from a queryset."""
+def compute_dashboard_context(qs: Any) -> dict[str, Any]:
+    """Compute all dashboard template context from a (filtered) queryset."""
     from django.db.models import Avg, Count
 
     state_counts: dict[str, int] = {}
@@ -303,46 +222,16 @@ def _compute_stats(qs: Any) -> dict[str, Any]:
     total_succeeded = state_counts.get("SUCCESS", 0)
     total_failed = state_counts.get("FAILURE", 0)
 
+    hourly_data = _get_hourly_throughput(qs)
+    throughput_svg = _build_throughput_chart(hourly_data) if hourly_data else ""
+    top_tasks_svg = _build_top_tasks_bar(top_tasks) if top_tasks else ""
+
     return {
         "total_tasks": total,
         "total_succeeded": total_succeeded,
         "total_failed": total_failed,
         "success_rate": f"{total_succeeded / total * 100:.1f}%" if total > 0 else "-",
         "avg_runtime": avg_runtime,
-        "top_tasks": top_tasks,
+        "throughput_svg": throughput_svg,
+        "top_tasks_svg": top_tasks_svg,
     }
-
-
-def dashboard_view(request: HttpRequest) -> HttpResponse:
-    """Render the metrics dashboard with Pygal SVG charts and sidebar filters."""
-    from django_celeryx.db_models import TaskState
-    from django_celeryx.settings import get_db_alias
-
-    db = get_db_alias()
-    all_qs = TaskState.objects.using(db)
-    qs = _apply_filters(request, all_qs)
-
-    filters = _build_sidebar_filters(request, all_qs)
-    stats = _compute_stats(qs)
-
-    hourly_data = _get_hourly_throughput(qs)
-    throughput_svg = _build_throughput_chart(hourly_data) if hourly_data else ""
-    top_tasks_svg = _build_top_tasks_bar(stats["top_tasks"]) if stats["top_tasks"] else ""
-
-    context = admin.site.each_context(request)
-    context.update(
-        {
-            "title": "Dashboard",
-            "opts": {
-                "app_label": "django_celeryx",
-                "model_name": "task",
-                "verbose_name_plural": "Tasks",
-                "app_config": type("", (), {"verbose_name": "django-celeryx"})(),
-            },
-            **stats,
-            "throughput_svg": throughput_svg,
-            "top_tasks_svg": top_tasks_svg,
-            "filters": filters,
-        }
-    )
-    return render(request, "admin/django_celeryx/dashboard.html", context)
