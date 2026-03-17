@@ -27,7 +27,7 @@ classifiers = [
   "Topic :: System :: Monitoring",
   "Typing :: Typed",
 ]
-dependencies = ["Django>=5.2,<7", "pygal>=3.0"]
+dependencies = ["Django>=5.2,<7"]
 
 [project.optional-dependencies]
 celery = ["celery>=5.4,<6"]

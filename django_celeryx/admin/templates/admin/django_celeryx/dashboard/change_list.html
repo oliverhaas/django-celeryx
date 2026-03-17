@@ -33,46 +33,14 @@
         margin-top: 6px;
     }
     .celeryx-row {
-        display: flex;
-        gap: 16px;
         margin-bottom: 16px;
-    }
-    .celeryx-row > * {
-        flex: 1;
-        min-width: 0;
     }
     .celeryx-chart {
         background: var(--body-bg);
         border: 1px solid var(--hairline-color);
         border-radius: 6px;
         padding: 16px;
-        overflow: hidden;
-    }
-    .celeryx-chart svg {
-        display: block;
-        width: 100%;
-        height: auto;
-    }
-    .celeryx-chart .pygal-chart text {
-        font-family: 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif !important;
-    }
-    .celeryx-chart .pygal-chart .guides line,
-    .celeryx-chart .pygal-chart .axis line {
-        stroke: #eee !important;
-        stroke-dasharray: 2,6 !important;
-        stroke-width: 0.5 !important;
-    }
-    .celeryx-chart .pygal-chart .axis .major line {
-        stroke: #ddd !important;
-        stroke-dasharray: none !important;
-        stroke-width: 0.5 !important;
-    }
-    .celeryx-chart .pygal-chart .tooltip rect {
-        fill: #fff !important;
-        stroke: #ccc !important;
-    }
-    .celeryx-chart .pygal-chart .tooltip text {
-        fill: #333 !important;
+        position: relative;
     }
 </style>
 {% endblock %}
@@ -88,11 +56,11 @@
             <div class="celeryx-stat-label">{% translate 'Total' %}</div>
         </div>
         <div class="celeryx-stat">
-            <div class="celeryx-stat-value" style="color: #417690;">{{ total_succeeded }}</div>
+            <div class="celeryx-stat-value celeryx-color-ok">{{ total_succeeded }}</div>
             <div class="celeryx-stat-label">{% translate 'Succeeded' %}</div>
         </div>
         <div class="celeryx-stat">
-            <div class="celeryx-stat-value" style="color: #ba2121;">{{ total_failed }}</div>
+            <div class="celeryx-stat-value celeryx-color-err">{{ total_failed }}</div>
             <div class="celeryx-stat-label">{% translate 'Failed' %}</div>
         </div>
         <div class="celeryx-stat">
@@ -107,19 +75,168 @@
         {% endif %}
     </div>
 
-    {% if throughput_svg %}
+    {% if chartjs_throughput %}
     <div class="celeryx-row">
-        <div class="celeryx-chart">
-            {{ throughput_svg|safe }}
-        </div>
+        <div class="celeryx-chart"><canvas id="cx-throughput" height="220"></canvas></div>
     </div>
-    {% endif %}
+    <div class="celeryx-row">
+        <div class="celeryx-chart"><canvas id="cx-tasks" height="220"></canvas></div>
+    </div>
 
-    {% if top_tasks_svg %}
-    <div class="celeryx-row">
-        <div class="celeryx-chart">
-            {{ top_tasks_svg|safe }}
-        </div>
-    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script>
+    (function() {
+        /* ---- Detect Django admin dark mode ---- */
+        const isDark = document.documentElement.dataset.theme === 'dark' ||
+            (document.documentElement.dataset.theme === 'auto' &&
+             window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+        const C = {
+            ok:      isDark ? '#5dade2' : '#417690',
+            okFill:  isDark ? 'rgba(93,173,226,0.15)' : 'rgba(65,118,144,0.2)',
+            err:     isDark ? '#e74c3c' : '#ba2121',
+            errFill: isDark ? 'rgba(231,76,60,0.15)' : 'rgba(186,33,33,0.2)',
+            text:    isDark ? '#ccc' : '#666',
+            grid:    isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+            title:   isDark ? '#ddd' : '#417690',
+            bar:     isDark ? '#5dade2' : '#417690',
+            barText: isDark ? '#5dade2' : '#417690',
+        };
+
+        /* ---- Apply accent colors to stat cards via CSS ---- */
+        document.querySelectorAll('.celeryx-color-ok').forEach(el => el.style.color = C.ok);
+        document.querySelectorAll('.celeryx-color-err').forEach(el => el.style.color = C.err);
+
+        const tp = {{ chartjs_throughput|safe }};
+        const tk = {{ chartjs_top_tasks|safe }};
+
+        const defaultFont = { family: "'Segoe UI', system-ui, Roboto, sans-serif" };
+        Chart.defaults.font = { ...Chart.defaults.font, ...defaultFont };
+
+        /* ---- Throughput (area chart) ---- */
+        new Chart(document.getElementById('cx-throughput'), {
+            type: 'line',
+            data: {
+                labels: tp.labels,
+                datasets: [
+                    {
+                        label: 'Succeeded',
+                        data: tp.succeeded,
+                        borderColor: C.ok,
+                        backgroundColor: C.okFill,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 0,
+                        pointHitRadius: 10,
+                        borderWidth: 2,
+                    },
+                    {
+                        label: 'Failed',
+                        data: tp.failed,
+                        borderColor: C.err,
+                        backgroundColor: C.errFill,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 0,
+                        pointHitRadius: 10,
+                        borderWidth: 2,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Throughput (last 24h)',
+                        color: C.title,
+                        font: { size: 14, weight: '500' },
+                        padding: { bottom: 12 },
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, color: C.text, font: { size: 12 } }
+                    },
+                    tooltip: {
+                        backgroundColor: isDark ? '#333' : '#fff',
+                        titleColor: isDark ? '#eee' : '#333',
+                        bodyColor: isDark ? '#ccc' : '#666',
+                        borderColor: isDark ? '#555' : '#ddd',
+                        borderWidth: 1,
+                        cornerRadius: 6,
+                        padding: 10,
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 8, color: C.text, font: { size: 11 } },
+                        grid: { display: false },
+                        border: { display: false },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: C.text, font: { size: 11 } },
+                        grid: { color: C.grid },
+                        border: { display: false },
+                    }
+                }
+            }
+        });
+
+        /* ---- Top Tasks (horizontal bar) ---- */
+        new Chart(document.getElementById('cx-tasks'), {
+            type: 'bar',
+            data: {
+                labels: tk.labels,
+                datasets: [{
+                    data: tk.values,
+                    backgroundColor: C.bar,
+                    borderRadius: 3,
+                    borderSkipped: false,
+                    barPercentage: 0.7,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Top Tasks (by count)',
+                        color: C.title,
+                        font: { size: 14, weight: '500' },
+                        padding: { bottom: 12 },
+                    },
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: isDark ? '#333' : '#fff',
+                        titleColor: isDark ? '#eee' : '#333',
+                        bodyColor: isDark ? '#ccc' : '#666',
+                        borderColor: isDark ? '#555' : '#ddd',
+                        borderWidth: 1,
+                        cornerRadius: 6,
+                        padding: 10,
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { color: C.text, font: { size: 11 } },
+                        grid: { color: C.grid },
+                        border: { display: false },
+                    },
+                    y: {
+                        ticks: { color: C.barText, font: { size: 12 } },
+                        grid: { display: false },
+                        border: { display: false },
+                    }
+                }
+            }
+        });
+    })();
+    </script>
     {% endif %}
 {% endblock %}
