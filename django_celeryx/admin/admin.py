@@ -315,7 +315,7 @@ class DashboardAdmin(_DashboardBase):  # type: ignore[misc]
 
         qs = _TaskState.objects.using(get_db_alias()).all()
         for f_cls in self.list_filter:
-            f = f_cls(request, request.GET, _TaskState, self)
+            f = f_cls(request, request.GET.copy(), _TaskState, self)
             qs = f.queryset(request, qs) or qs
 
         extra_context.update(compute_dashboard_context(qs))

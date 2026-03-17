@@ -231,7 +231,7 @@ class DashboardAdmin(ModelAdmin):  # type: ignore[misc]
 
         qs = TaskState.objects.using(get_db_alias()).all()
         for f_cls in [DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter]:
-            f = f_cls(request, request.GET, TaskState, self)
+            f = f_cls(request, request.GET.copy(), TaskState, self)
             qs = f.queryset(request, qs) or qs
 
         extra_context.update(compute_dashboard_context(qs))
