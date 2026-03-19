@@ -59,6 +59,13 @@ class LiveUpdateMixin:
         extra_context["live_toggle_url"] = f"?{toggle_qs}" if toggle_qs else "?"
         extra_context["live_url"] = request.get_full_path()
 
+        # Strip 'live' from request.GET so ChangeList doesn't treat it as a filter.
+        # Also update QUERY_STRING so get_full_path() stays consistent.
+        if "live" in request.GET:
+            request.GET = request.GET.copy()
+            request.GET.pop("live")
+            request.META["QUERY_STRING"] = request.GET.urlencode()
+
         return super().changelist_view(request, extra_context)  # type: ignore[misc]
 
 
@@ -295,10 +302,11 @@ class DashboardAdmin(LiveUpdateMixin, _DashboardBase):  # type: ignore[misc]
         return False
 
     def get_queryset(self, request: HttpRequest) -> Any:
+        # Return empty qs so ChangeList never queries the unmanaged Dashboard table.
+        # Actual data is computed manually in changelist_view.
         from django_celeryx.db_models import TaskState
-        from django_celeryx.settings import get_db_alias
 
-        return TaskState.objects.using(get_db_alias()).all()
+        return TaskState.objects.none()
 
     def changelist_view(
         self,

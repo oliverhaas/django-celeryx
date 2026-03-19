@@ -44,6 +44,6 @@ class CeleryXRouter:
             return db == self._get_db()
         # Don't let other apps migrate to our DB (if it's a dedicated one)
         target_db = self._get_db()
-        if db == target_db and target_db not in ("default", "celeryx_default"):
+        if db == target_db and target_db != "default":
             return False
         return None

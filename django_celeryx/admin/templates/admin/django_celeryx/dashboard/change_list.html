@@ -60,19 +60,27 @@
         flex: 1;
         min-width: 0;
     }
+    /* Light mode colors */
+    .celeryx-color-ok { color: #417690; }
+    .celeryx-color-err { color: #ba2121; }
+    .celeryx-color-active { color: #e09c3f; }
+    @media (prefers-color-scheme: dark) {
+        [data-theme="auto"] .celeryx-color-ok { color: #5dade2; }
+        [data-theme="auto"] .celeryx-color-err { color: #e74c3c; }
+        [data-theme="auto"] .celeryx-color-active { color: #f0ad4e; }
+    }
+    [data-theme="dark"] .celeryx-color-ok { color: #5dade2; }
+    [data-theme="dark"] .celeryx-color-err { color: #e74c3c; }
+    [data-theme="dark"] .celeryx-color-active { color: #f0ad4e; }
 </style>
 <script>
-/* Chart.js dashboard renderer — runs on load and after htmx morph */
+/* Chart.js dashboard renderer — creates on first load, updates in-place on htmx morph */
+window._cxCharts = window._cxCharts || {};
+
 window._cxRenderDashboard = function() {
     const dataEl = document.getElementById('cx-data');
     if (!dataEl) return;
     const D = JSON.parse(dataEl.textContent);
-
-    /* Destroy existing charts to avoid canvas reuse errors */
-    document.querySelectorAll('[data-cx-chart]').forEach(el => {
-        const existing = Chart.getChart(el);
-        if (existing) existing.destroy();
-    });
 
     const isDark = document.documentElement.dataset.theme === 'dark' ||
         (document.documentElement.dataset.theme === 'auto' &&
@@ -98,12 +106,37 @@ window._cxRenderDashboard = function() {
     };
     const mkTitle = (t) => ({ display: true, text: t, color: C.title, font: { size: 14, weight: '500' }, padding: { bottom: 12 } });
 
-    document.querySelectorAll('.celeryx-color-ok').forEach(el => el.style.color = C.ok);
-    document.querySelectorAll('.celeryx-color-err').forEach(el => el.style.color = C.err);
+    /* Colors are applied via CSS classes — no JS needed */
     Chart.defaults.font = { ...Chart.defaults.font, family: "'Segoe UI', system-ui, Roboto, sans-serif" };
 
+    /* Helper: update chart data in-place or create new */
+    function upsert(id, config) {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const existing = window._cxCharts[id];
+        if (existing && !existing.ctx.canvas.isConnected) {
+            /* Canvas was replaced by morph — destroy stale reference */
+            existing.destroy();
+            delete window._cxCharts[id];
+        }
+        if (window._cxCharts[id]) {
+            const ch = window._cxCharts[id];
+            ch.data.labels = config.data.labels;
+            config.data.datasets.forEach((ds, i) => {
+                if (ch.data.datasets[i]) {
+                    ch.data.datasets[i].data = ds.data;
+                } else {
+                    ch.data.datasets.push(ds);
+                }
+            });
+            ch.update('none');  /* 'none' = no animation on update */
+        } else {
+            window._cxCharts[id] = new Chart(canvas, config);
+        }
+    }
+
     if (D.tp) {
-        new Chart(document.getElementById('cx-throughput'), {
+        upsert('cx-throughput', {
             type: 'line',
             data: {
                 labels: D.tp.labels,
@@ -114,6 +147,7 @@ window._cxRenderDashboard = function() {
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
+                animation: { duration: 600 },
                 interaction: { mode: 'index', intersect: false },
                 plugins: { title: mkTitle('Throughput'), legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, color: C.text, font: { size: 12 } } }, tooltip: tip },
                 scales: { x: { ticks: { maxTicksLimit: 8, color: C.text, font: { size: 11 } }, grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 } }, grid: { color: C.grid }, border: { display: false } } }
@@ -121,47 +155,47 @@ window._cxRenderDashboard = function() {
         });
     }
     if (D.tk) {
-        new Chart(document.getElementById('cx-tasks'), {
+        upsert('cx-tasks', {
             type: 'bar',
             data: { labels: D.tk.labels, datasets: [{ data: D.tk.values, backgroundColor: C.bar, borderRadius: 3, borderSkipped: false, barPercentage: 0.7 }] },
             options: {
-                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
                 plugins: { title: mkTitle('Top Tasks (by count)'), legend: { display: false }, tooltip: tip },
                 scales: { x: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 } }, grid: { color: C.grid }, border: { display: false } }, y: { ticks: { color: C.bar, font: { size: 12 } }, grid: { display: false }, border: { display: false } } }
             }
         });
     }
     if (D.wl) {
-        new Chart(document.getElementById('cx-workers'), {
+        upsert('cx-workers', {
             type: 'bar',
             data: { labels: D.wl.labels, datasets: [{ data: D.wl.values, backgroundColor: C.ok, borderRadius: 3, borderSkipped: false, barPercentage: 0.7 }] },
             options: {
-                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
                 plugins: { title: mkTitle('Worker Load (tasks processed)'), legend: { display: false }, tooltip: tip },
                 scales: { x: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 } }, grid: { color: C.grid }, border: { display: false } }, y: { ticks: { color: C.bar, font: { size: 12 } }, grid: { display: false }, border: { display: false } } }
             }
         });
     }
     if (D.sl) {
-        const maxAvg = Math.max(...D.sl.avg);
+        const maxAvg = D.sl.avg.length ? Math.max(...D.sl.avg) : 0;
         const minSpan = maxAvg * 0.03;
         const ranges = D.sl.avg.map((a, i) => { const h = Math.max(D.sl.std[i], minSpan); return [Math.max(0, a - h), a + h]; });
-        new Chart(document.getElementById('cx-slowest'), {
+        upsert('cx-slowest', {
             type: 'bar',
             data: { labels: D.sl.labels, datasets: [{ data: ranges, backgroundColor: C.warn, borderRadius: 3, borderSkipped: false, barPercentage: 0.6 }] },
             options: {
-                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
                 plugins: { title: mkTitle('Slowest Tasks (runtime range: avg ± stddev)'), legend: { display: false }, tooltip: { ...tip, callbacks: { label: ctx => { const i = ctx.dataIndex; return ' Avg: ' + D.sl.avg[i].toFixed(3) + 's  (±' + D.sl.std[i].toFixed(3) + 's)'; } } } },
                 scales: { x: { beginAtZero: true, ticks: { color: C.text, font: { size: 11 }, callback: v => v + 's' }, grid: { color: C.grid }, border: { display: false } }, y: { ticks: { color: C.bar, font: { size: 12 } }, grid: { display: false }, border: { display: false } } }
             }
         });
     }
     if (D.fr) {
-        new Chart(document.getElementById('cx-failures'), {
+        upsert('cx-failures', {
             type: 'bar',
             data: { labels: D.fr.labels, datasets: [{ data: D.fr.rates, backgroundColor: C.err, borderRadius: 3, borderSkipped: false, barPercentage: 0.7 }] },
             options: {
-                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
                 plugins: { title: mkTitle('Failure Rate by Task'), legend: { display: false }, tooltip: { ...tip, callbacks: { label: ctx => ' ' + ctx.raw + '% (' + D.fr.counts[ctx.dataIndex] + ')' } } },
                 scales: { x: { beginAtZero: true, max: 100, ticks: { color: C.text, font: { size: 11 }, callback: v => v + '%' }, grid: { color: C.grid }, border: { display: false } }, y: { ticks: { color: C.bar, font: { size: 12 } }, grid: { display: false }, border: { display: false } } }
             }
@@ -178,6 +212,16 @@ document.addEventListener('htmx:afterSettle', window._cxRenderDashboard);
 {% block pagination %}{% endblock %}
 
 {% block result_list %}
+    {# Stats area: morphed by htmx for smooth live updates #}
+    {% if live %}
+    <div hx-get="{{ live_url }}"
+         hx-trigger="every {{ refresh_interval }}s"
+         hx-select="#cx-stats"
+         hx-target="#cx-stats"
+         hx-swap="morph"
+         hx-ext="morph">
+    {% endif %}
+    <div id="cx-stats">
     <script type="application/json" id="cx-data">
     {
         {% if chartjs_throughput %}"tp": {{ chartjs_throughput|safe }},{% endif %}
@@ -203,6 +247,10 @@ document.addEventListener('htmx:afterSettle', window._cxRenderDashboard);
             <div class="celeryx-stat-label">{% translate 'Failed' %}</div>
         </div>
         <div class="celeryx-stat">
+            <div class="celeryx-stat-value celeryx-color-active">{{ total_active }}</div>
+            <div class="celeryx-stat-label">{% translate 'Active' %}</div>
+        </div>
+        <div class="celeryx-stat">
             <div class="celeryx-stat-value">{{ success_rate }}</div>
             <div class="celeryx-stat-label">{% translate 'Success Rate' %}</div>
         </div>
@@ -213,24 +261,21 @@ document.addEventListener('htmx:afterSettle', window._cxRenderDashboard);
         </div>
         {% endif %}
     </div>
+    </div>
+    {% if live %}
+    </div>
+    {% endif %}
 
-    {% if chartjs_throughput %}
+    {# Charts area: never morphed, JS updates Chart.js in-place #}
     <div class="celeryx-row">
         <div class="celeryx-chart celeryx-chart-wide"><canvas id="cx-throughput" data-cx-chart></canvas></div>
     </div>
     <div class="celeryx-pair">
         <div class="celeryx-chart"><canvas id="cx-tasks" data-cx-chart></canvas></div>
-        {% if chartjs_worker_load %}
         <div class="celeryx-chart"><canvas id="cx-workers" data-cx-chart></canvas></div>
-        {% endif %}
     </div>
     <div class="celeryx-pair">
-        {% if chartjs_slowest %}
         <div class="celeryx-chart"><canvas id="cx-slowest" data-cx-chart></canvas></div>
-        {% endif %}
-        {% if chartjs_failure_rate %}
         <div class="celeryx-chart"><canvas id="cx-failures" data-cx-chart></canvas></div>
-        {% endif %}
     </div>
-    {% endif %}
 {% endblock %}

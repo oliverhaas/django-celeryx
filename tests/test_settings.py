@@ -5,7 +5,6 @@ from __future__ import annotations
 from django.test import override_settings
 
 from django_celeryx.settings import (
-    CELERYX_DEFAULT_DB_ALIAS,
     CeleryXSettings,
     _get_settings,
     celeryx_settings,
@@ -109,17 +108,13 @@ class TestGetDbAlias:
         """Returns a custom database alias when configured."""
         assert get_db_alias() == "custom_db"
 
-    @override_settings(CELERYX={"DATABASE": None, "EVENT_LISTENER_AUTOSTART": False})
-    def test_auto_creates_in_memory_sqlite(self, db):
-        """When DATABASE is None, auto-creates an in-memory SQLite alias."""
-        from django.conf import settings as django_settings
+    @override_settings(CELERYX={"EVENT_LISTENER_AUTOSTART": False})
+    def test_auto_creates_celeryx_sqlite(self):
+        """When DATABASE is not set, auto-creates a dedicated 'celeryx' SQLite alias."""
+        from django_celeryx.settings import CELERYX_DB_ALIAS
 
         alias = get_db_alias()
-        assert alias == CELERYX_DEFAULT_DB_ALIAS
-        assert CELERYX_DEFAULT_DB_ALIAS in django_settings.DATABASES
-        db_conf = django_settings.DATABASES[CELERYX_DEFAULT_DB_ALIAS]
-        assert db_conf["ENGINE"] == "django.db.backends.sqlite3"
-        assert db_conf["NAME"] == ":memory:"
+        assert alias == CELERYX_DB_ALIAS
 
 
 class TestLazySettings:

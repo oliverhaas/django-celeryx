@@ -9,6 +9,11 @@ class UnfoldCeleryAdminConfig(AppConfig):
     verbose_name = "django-celeryx"
 
     def ready(self):
+        from django_celeryx.admin.apps import CeleryAdminConfig
+
+        # Share WAL setup
+        CeleryAdminConfig._enable_sqlite_wal()
+
         from django_celeryx.settings import celeryx_settings
 
         if not celeryx_settings.ADMIN_ENABLED:

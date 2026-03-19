@@ -5,9 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-# Default database alias used when no DATABASE is configured.
-# An in-memory SQLite database is auto-configured under this alias.
-CELERYX_DEFAULT_DB_ALIAS = "celeryx_default"
+# Default database alias auto-configured when DATABASE is not set.
+CELERYX_DB_ALIAS = "celeryx"
 
 
 @dataclass
@@ -18,7 +17,7 @@ class CeleryXSettings:
 
         CELERYX = {
             "CELERY_APP": "myproject.celery.app",
-            "DATABASE": "default",  # or a dedicated DB alias
+            "DATABASE": "celeryx",  # or any Django DATABASES alias
             ...
         }
     """
@@ -27,8 +26,8 @@ class CeleryXSettings:
     CELERY_APP: str | None = None
 
     # Database alias for storing event data.
-    # Default (None) = uses an auto-configured in-memory SQLite database.
-    # Set to a Django DATABASES alias to use a persistent database.
+    # Default (None) = auto-configures a dedicated 'celeryx' SQLite file database.
+    # Set to a Django DATABASES alias to use your own database (e.g. PostgreSQL).
     DATABASE: str | None = None
 
     # Maximum age of stored task records in seconds (default 24h).
@@ -74,22 +73,43 @@ def _get_settings() -> CeleryXSettings:
 def get_db_alias() -> str:
     """Get the database alias for celeryx models.
 
-    Returns the user-configured DATABASE, or the auto-configured
-    in-memory SQLite alias.
+    If DATABASE is not configured, auto-creates a dedicated 'celeryx' SQLite
+    file database alongside the default database.
     """
     settings = _get_settings()
     if settings.DATABASE is not None:
         return settings.DATABASE
 
-    # Auto-configure in-memory SQLite if not already present
     from django.conf import settings as django_settings
 
-    if CELERYX_DEFAULT_DB_ALIAS not in django_settings.DATABASES:
-        django_settings.DATABASES[CELERYX_DEFAULT_DB_ALIAS] = {
+    if CELERYX_DB_ALIAS not in django_settings.DATABASES:
+        # Place celeryx.sqlite3 next to the default database file
+        import os
+
+        default_db = django_settings.DATABASES.get("default", {})
+        default_name = default_db.get("NAME", "")
+        if default_name and default_name != ":memory:":
+            db_dir = os.path.dirname(os.path.abspath(str(default_name)))
+        else:
+            db_dir = str(django_settings.BASE_DIR) if hasattr(django_settings, "BASE_DIR") else os.getcwd()
+
+        django_settings.DATABASES[CELERYX_DB_ALIAS] = {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": ":memory:",
+            "NAME": os.path.join(db_dir, "celeryx.sqlite3"),
+            "ATOMIC_REQUESTS": False,
+            "AUTOCOMMIT": True,
+            "CONN_MAX_AGE": 0,
+            "CONN_HEALTH_CHECKS": False,
+            "OPTIONS": {},
+            "TIME_ZONE": None,
+            "USER": "",
+            "PASSWORD": "",
+            "HOST": "",
+            "PORT": "",
+            "TEST": {},
         }
-    return CELERYX_DEFAULT_DB_ALIAS
+
+    return CELERYX_DB_ALIAS
 
 
 class _LazySettings:

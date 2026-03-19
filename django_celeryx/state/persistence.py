@@ -9,7 +9,12 @@ from __future__ import annotations
 import logging
 import time
 
+from django.db.utils import OperationalError
+
 logger = logging.getLogger(__name__)
+
+_MAX_RETRIES = 3
+_RETRY_DELAY = 0.05  # 50ms
 
 
 def _get_db() -> str:
@@ -18,6 +23,25 @@ def _get_db() -> str:
     return get_db_alias()
 
 
+def _retry_on_lock(fn: object) -> object:
+    """Decorator that retries on OperationalError (e.g. SQLite 'database is locked')."""
+    import functools
+
+    @functools.wraps(fn)  # type: ignore[arg-type]
+    def wrapper(*args: object, **kwargs: object) -> object:
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return fn(*args, **kwargs)  # type: ignore[operator]
+            except OperationalError:
+                if attempt == _MAX_RETRIES - 1:
+                    raise
+                time.sleep(_RETRY_DELAY * (attempt + 1))
+        return None
+
+    return wrapper
+
+
+@_retry_on_lock
 def persist_task_event(uuid: str, **fields: object) -> None:
     """Upsert task state in the database by uuid.
 
@@ -40,10 +64,13 @@ def persist_task_event(uuid: str, **fields: object) -> None:
                 TaskState.objects.using(db).create(uuid=uuid, **clean)
             except IntegrityError:
                 TaskState.objects.using(db).filter(uuid=uuid).update(**clean)
+    except OperationalError:
+        raise
     except Exception:
         logger.debug("Failed to persist task state %s", uuid, exc_info=True)
 
 
+@_retry_on_lock
 def persist_worker_event(hostname: str, **fields: object) -> None:
     """Upsert worker state in the database by hostname.
 
@@ -66,6 +93,8 @@ def persist_worker_event(hostname: str, **fields: object) -> None:
                 WorkerState.objects.using(db).create(hostname=hostname, **clean)
             except IntegrityError:
                 WorkerState.objects.using(db).filter(hostname=hostname).update(**clean)
+    except OperationalError:
+        raise
     except Exception:
         logger.debug("Failed to persist worker state %s", hostname, exc_info=True)
 
