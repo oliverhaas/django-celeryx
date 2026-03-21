@@ -3,25 +3,19 @@
 Metrics are only registered if ``prometheus-client`` is installed.
 Install with ``pip install django-celeryx[prometheus]``.
 
-Primary metrics (always registered):
+The metric prefix is configurable via ``CELERYX["PROMETHEUS_PREFIX"]``
+(default ``"django_celeryx"``). Set to ``"flower"`` for Flower drop-in compat.
 
-- ``celeryx_events_total`` — Counter(worker, type, task)
-- ``celeryx_task_runtime_seconds`` — Histogram(worker, task)
-- ``celeryx_task_prefetch_time_seconds`` — Gauge(worker, task)
-- ``celeryx_task_prefetch_count`` — Gauge(worker, task)
-- ``celeryx_worker_online`` — Gauge(worker)
-- ``celeryx_worker_executing_tasks`` — Gauge(worker)
-- ``celeryx_tasks_total`` — Gauge of total tasks in the database
-- ``celeryx_tasks_active`` — Gauge of active (non-terminal) tasks
+Default metrics:
 
-Flower-compatible duplicates (opt-in via ``CELERYX["PROMETHEUS_FLOWER_COMPAT"] = True``):
-
-- ``flower_events_total``
-- ``flower_task_runtime_seconds``
-- ``flower_task_prefetch_time_seconds``
-- ``flower_task_prefetch_count``
-- ``flower_worker_online``
-- ``flower_worker_number_of_currently_executing_tasks``
+- ``django_celeryx_events_total`` — Counter(worker, type, task)
+- ``django_celeryx_task_runtime_seconds`` — Histogram(worker, task)
+- ``django_celeryx_task_prefetch_time_seconds`` — Gauge(worker, task)
+- ``django_celeryx_task_prefetch_count`` — Gauge(worker, task)
+- ``django_celeryx_worker_online`` — Gauge(worker)
+- ``django_celeryx_worker_executing_tasks`` — Gauge(worker)
+- ``django_celeryx_tasks_total`` — Gauge of total tasks in the database
+- ``django_celeryx_tasks_active`` — Gauge of active (non-terminal) tasks
 """
 
 from __future__ import annotations
@@ -33,57 +27,16 @@ logger = logging.getLogger(__name__)
 
 _metrics: _PrometheusMetrics | None = None
 
-
-class _MetricSet:
-    """A set of identically-labelled metrics that can be updated together."""
-
-    def __init__(self, *metrics: Any) -> None:
-        self._metrics = metrics
-
-    def labels(self, *args: Any) -> _LabelledSet:
-        return _LabelledSet([m.labels(*args) for m in self._metrics])
-
-    def set(self, value: float) -> None:
-        for m in self._metrics:
-            m.set(value)
-
-    def inc(self, amount: float = 1) -> None:
-        for m in self._metrics:
-            m.inc(amount)
-
-    def dec(self, amount: float = 1) -> None:
-        for m in self._metrics:
-            m.dec(amount)
-
-    def observe(self, value: float) -> None:
-        for m in self._metrics:
-            m.observe(value)
-
-
-class _LabelledSet:
-    """Labelled metric instances that can be updated together."""
-
-    def __init__(self, labelled: list[Any]) -> None:
-        self._labelled = labelled
-
-    def inc(self, amount: float = 1) -> None:
-        for m in self._labelled:
-            m.inc(amount)
-
-    def dec(self, amount: float = 1) -> None:
-        for m in self._labelled:
-            m.dec(amount)
-
-    def set(self, value: float) -> None:
-        for m in self._labelled:
-            m.set(value)
-
-    def observe(self, value: float) -> None:
-        for m in self._labelled:
-            m.observe(value)
-
-
 _RUNTIME_BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, float("inf"))
+
+
+def _get_prefix() -> str:
+    try:
+        from django_celeryx.settings import celeryx_settings
+
+        return getattr(celeryx_settings, "PROMETHEUS_PREFIX", "django_celeryx")
+    except Exception:
+        return "django_celeryx"
 
 
 class _PrometheusMetrics:
@@ -92,62 +45,22 @@ class _PrometheusMetrics:
     def __init__(self) -> None:
         from prometheus_client import Counter, Gauge, Histogram
 
-        flower_compat = self._flower_compat_enabled()
+        p = _get_prefix()
 
-        # Primary celeryx metrics
-        cx_events = Counter("celeryx_events_total", "Number of Celery events", ["worker", "type", "task"])
-        cx_runtime = Histogram(
-            "celeryx_task_runtime_seconds", "Task runtime", ["worker", "task"], buckets=_RUNTIME_BUCKETS
+        self.events = Counter(f"{p}_events_total", "Number of Celery events", ["worker", "type", "task"])
+        self.runtime = Histogram(
+            f"{p}_task_runtime_seconds", "Task runtime", ["worker", "task"], buckets=_RUNTIME_BUCKETS
         )
-        cx_prefetch_time = Gauge(
-            "celeryx_task_prefetch_time_seconds", "Time between task received and started", ["worker", "task"]
+        self.prefetch_time = Gauge(
+            f"{p}_task_prefetch_time_seconds", "Time between task received and started", ["worker", "task"]
         )
-        cx_prefetch_count = Gauge("celeryx_task_prefetch_count", "Number of prefetched tasks", ["worker", "task"])
-        cx_worker_online = Gauge("celeryx_worker_online", "Worker online status", ["worker"])
-        cx_executing = Gauge("celeryx_worker_executing_tasks", "Currently executing tasks on worker", ["worker"])
-
-        if flower_compat:
-            fl_events = Counter("flower_events_total", "Number of events", ["worker", "type", "task"])
-            fl_runtime = Histogram(
-                "flower_task_runtime_seconds", "Task runtime in seconds", ["worker", "task"], buckets=_RUNTIME_BUCKETS
-            )
-            fl_prefetch_time = Gauge(
-                "flower_task_prefetch_time_seconds", "Time between task received and started", ["worker", "task"]
-            )
-            fl_prefetch_count = Gauge("flower_task_prefetch_count", "Number of prefetched tasks", ["worker", "task"])
-            fl_worker_online = Gauge("flower_worker_online", "Worker online status", ["worker"])
-            fl_executing = Gauge(
-                "flower_worker_number_of_currently_executing_tasks",
-                "Number of currently executing tasks on worker",
-                ["worker"],
-            )
-
-            self.events = _MetricSet(cx_events, fl_events)
-            self.runtime = _MetricSet(cx_runtime, fl_runtime)
-            self.prefetch_time = _MetricSet(cx_prefetch_time, fl_prefetch_time)
-            self.number_of_prefetched_tasks = _MetricSet(cx_prefetch_count, fl_prefetch_count)
-            self.worker_online = _MetricSet(cx_worker_online, fl_worker_online)
-            self.worker_executing = _MetricSet(cx_executing, fl_executing)
-        else:
-            self.events = _MetricSet(cx_events)
-            self.runtime = _MetricSet(cx_runtime)
-            self.prefetch_time = _MetricSet(cx_prefetch_time)
-            self.number_of_prefetched_tasks = _MetricSet(cx_prefetch_count)
-            self.worker_online = _MetricSet(cx_worker_online)
-            self.worker_executing = _MetricSet(cx_executing)
-
-        # DB-derived gauges (celeryx only, no flower equivalent)
-        self.tasks_total = Gauge("celeryx_tasks_total", "Total tasks in the database")
-        self.tasks_active = Gauge("celeryx_tasks_active", "Active (non-terminal) tasks in the database")
-
-    @staticmethod
-    def _flower_compat_enabled() -> bool:
-        try:
-            from django_celeryx.settings import celeryx_settings
-
-            return getattr(celeryx_settings, "PROMETHEUS_FLOWER_COMPAT", False)
-        except Exception:
-            return False
+        self.number_of_prefetched_tasks = Gauge(
+            f"{p}_task_prefetch_count", "Number of prefetched tasks", ["worker", "task"]
+        )
+        self.worker_online = Gauge(f"{p}_worker_online", "Worker online status", ["worker"])
+        self.worker_executing = Gauge(f"{p}_worker_executing_tasks", "Currently executing tasks on worker", ["worker"])
+        self.tasks_total = Gauge(f"{p}_tasks_total", "Total tasks in the database")
+        self.tasks_active = Gauge(f"{p}_tasks_active", "Active (non-terminal) tasks in the database")
 
 
 def get_metrics() -> _PrometheusMetrics | None:
@@ -167,7 +80,6 @@ def update_metrics_from_event(event: dict[str, Any], state: Any) -> None:  # noq
     """Update Prometheus metrics from a Celery event.
 
     Called from the event handler after State.event() processes the event.
-    Mirrors Flower's EventsState.event() metric instrumentation.
     """
     metrics = get_metrics()
     if metrics is None:
@@ -234,7 +146,6 @@ def metrics_view(request: Any) -> Any:  # noqa: ARG001
             content_type="text/plain",
         )
 
-    # Update DB-derived gauges before generating output
     _update_db_gauges()
 
     return HttpResponse(

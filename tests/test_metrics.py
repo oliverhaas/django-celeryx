@@ -64,9 +64,9 @@ def test_celeryx_metrics_registered_by_default():
     get_metrics()
     # celeryx metrics should exist
     names = {m.name for m in prometheus_client.REGISTRY.collect() if hasattr(m, "name")}
-    assert "celeryx_events" in names
-    assert "celeryx_task_runtime_seconds" in names
-    assert "celeryx_worker_online" in names
+    assert "django_celeryx_events" in names
+    assert "django_celeryx_task_runtime_seconds" in names
+    assert "django_celeryx_worker_online" in names
     # flower metrics should NOT exist by default
     assert "flower_events" not in names
 
@@ -91,7 +91,7 @@ def test_update_metrics_from_task_event():
     }
     update_metrics_from_event(event, state)
 
-    val = _get_counter_value("celeryx_events", {"worker": "worker-1", "type": "task-started", "task": "my.task"})
+    val = _get_counter_value("django_celeryx_events", {"worker": "worker-1", "type": "task-started", "task": "my.task"})
     assert val > 0
 
 
@@ -105,11 +105,11 @@ def test_update_metrics_from_worker_event():
 
     event = {"type": "worker-online", "hostname": "worker-1"}
     update_metrics_from_event(event, state)
-    assert _get_gauge_value("celeryx_worker_online", {"worker": "worker-1"}) == 1.0
+    assert _get_gauge_value("django_celeryx_worker_online", {"worker": "worker-1"}) == 1.0
 
     event = {"type": "worker-offline", "hostname": "worker-1"}
     update_metrics_from_event(event, state)
-    assert _get_gauge_value("celeryx_worker_online", {"worker": "worker-1"}) == 0.0
+    assert _get_gauge_value("django_celeryx_worker_online", {"worker": "worker-1"}) == 0.0
 
 
 def test_update_metrics_runtime_histogram():
@@ -133,7 +133,7 @@ def test_update_metrics_runtime_histogram():
     }
     update_metrics_from_event(event, state)
 
-    assert _get_histogram_sum("celeryx_task_runtime_seconds", {"worker": "worker-1", "task": "my.task"}) == 1.5
+    assert _get_histogram_sum("django_celeryx_task_runtime_seconds", {"worker": "worker-1", "task": "my.task"}) == 1.5
 
 
 def test_metrics_view():
@@ -146,4 +146,4 @@ def test_metrics_view():
     response = metrics_view(request)
     assert response.status_code == 200
     content = response.content.decode()
-    assert "celeryx_events" in content
+    assert "django_celeryx_events" in content

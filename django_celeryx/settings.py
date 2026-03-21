@@ -61,8 +61,8 @@ class CeleryXSettings:
     )
     NATURAL_TIME: bool = False
 
-    # Prometheus: also register metrics under flower_* names for drop-in compat
-    PROMETHEUS_FLOWER_COMPAT: bool = False
+    # Prometheus metric name prefix. Set to "flower" for Flower drop-in compat.
+    PROMETHEUS_PREFIX: str = "django_celeryx"
 
 
 def _get_settings() -> CeleryXSettings:
