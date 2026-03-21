@@ -1,8 +1,9 @@
 """Database-backed models for persisting Celery task and worker state.
 
 These are managed models (unlike the admin display models in admin/models.py)
-that create actual database tables. By default an auto-configured in-memory
-SQLite database is used; set CELERYX["DATABASE"] for persistent storage.
+that create actual database tables. By default an auto-configured dedicated
+SQLite file database (celeryx.sqlite3) is used; set CELERYX["DATABASE"]
+to use your own database alias (e.g. PostgreSQL).
 """
 
 from __future__ import annotations

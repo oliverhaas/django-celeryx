@@ -84,18 +84,18 @@ def get_db_alias() -> str:
 
     if CELERYX_DB_ALIAS not in django_settings.DATABASES:
         # Place celeryx.sqlite3 next to the default database file
-        import os
+        from pathlib import Path
 
         default_db = django_settings.DATABASES.get("default", {})
         default_name = default_db.get("NAME", "")
         if default_name and default_name != ":memory:":
-            db_dir = os.path.dirname(os.path.abspath(str(default_name)))
+            db_dir = Path(str(default_name)).resolve().parent
         else:
-            db_dir = str(django_settings.BASE_DIR) if hasattr(django_settings, "BASE_DIR") else os.getcwd()
+            db_dir = Path(django_settings.BASE_DIR) if hasattr(django_settings, "BASE_DIR") else Path.cwd()
 
         django_settings.DATABASES[CELERYX_DB_ALIAS] = {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": os.path.join(db_dir, "celeryx.sqlite3"),
+            "NAME": str(db_dir / "celeryx.sqlite3"),
             "ATOMIC_REQUESTS": False,
             "AUTOCOMMIT": True,
             "CONN_MAX_AGE": 0,

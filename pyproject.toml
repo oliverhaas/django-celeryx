@@ -33,6 +33,7 @@ dependencies = ["Django>=5.2,<7"]
 celery = ["celery>=5.4,<6"]
 celery-asyncio = ["celery-asyncio>=6.0.0a1"]
 unfold = ["django-unfold>=0.70.0"]
+prometheus = ["prometheus-client>=0.20.0"]
 
 [project.urls]
 Homepage = "https://github.com/oliverhaas/django-celeryx"

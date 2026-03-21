@@ -152,9 +152,7 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
     total_succeeded = state_counts.get("SUCCESS", 0)
     total_failed = state_counts.get("FAILURE", 0)
     total_completed = total_succeeded + total_failed + state_counts.get("REVOKED", 0)
-    total_active = (
-        state_counts.get("STARTED", 0) + state_counts.get("RECEIVED", 0) + state_counts.get("PENDING", 0)
-    )
+    total_active = state_counts.get("STARTED", 0) + state_counts.get("RECEIVED", 0) + state_counts.get("PENDING", 0)
 
     # Throughput — always provide data (even if all zeros)
     throughput_data = _get_throughput(qs, period)

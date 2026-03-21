@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from django.apps import AppConfig
 
 
@@ -39,7 +43,7 @@ class CeleryAdminConfig(AppConfig):
         """
         from django.db.backends.signals import connection_created
 
-        def _set_sqlite_pragmas(sender, connection, **kwargs):
+        def _set_sqlite_pragmas(sender: Any, connection: Any, **kwargs: Any) -> None:  # noqa: ARG001
             if connection.vendor == "sqlite":
                 cursor = connection.cursor()
                 cursor.execute("PRAGMA journal_mode=WAL;")

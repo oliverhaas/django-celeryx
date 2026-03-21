@@ -50,9 +50,21 @@ _task_snapshots: dict[str, dict[str, Any]] = {}
 _worker_snapshots: dict[str, dict[str, Any]] = {}
 
 _TASK_ATTRS = (
-    "name", "args", "kwargs", "eta", "expires", "exchange",
-    "routing_key", "retries", "result", "exception", "traceback",
-    "runtime", "worker", "parent_id", "root_id",
+    "name",
+    "args",
+    "kwargs",
+    "eta",
+    "expires",
+    "exchange",
+    "routing_key",
+    "retries",
+    "result",
+    "exception",
+    "traceback",
+    "runtime",
+    "worker",
+    "parent_id",
+    "root_id",
 )
 _TASK_TIMESTAMPS = ("received", "started", "succeeded", "failed", "retried", "revoked")
 _WORKER_ATTRS = ("active", "freq", "loadavg", "sw_ident", "sw_ver", "sw_sys")
@@ -118,6 +130,11 @@ def _handle_event(event: dict) -> None:
             snap = _worker_snapshots.get(obj.hostname, {})
             snap.update(_snapshot_worker(obj))
             _worker_snapshots[obj.hostname] = snap
+
+    # Update Prometheus metrics (outside lock — metrics are thread-safe)
+    from django_celeryx.metrics import update_metrics_from_event
+
+    update_metrics_from_event(event, _get_state())
 
 
 def _flush_to_db() -> None:
@@ -204,7 +221,8 @@ class EventListener(threading.Thread):
         try:
             with app.connection() as connection:
                 recv = app.events.Receiver(
-                    connection, handlers={"*": _handle_event},
+                    connection,
+                    handlers={"*": _handle_event},
                 )
                 recv.should_stop = False
                 logger.info("CeleryX event listener connected, consuming events")
