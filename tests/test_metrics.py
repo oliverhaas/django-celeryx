@@ -2,21 +2,19 @@
 
 from __future__ import annotations
 
+import contextlib
+
+import prometheus_client
 import pytest
 
 
 @pytest.fixture(autouse=True)
 def _reset_metrics():
     """Reset the metrics singleton and collector registry between tests."""
-    import prometheus_client
-
     import django_celeryx.metrics as m
 
     old = m._metrics
     m._metrics = None
-
-    # Unregister all collectors so metrics can be re-created
-    import contextlib
 
     collectors = list(prometheus_client.REGISTRY._names_to_collectors.values())
     for collector in set(collectors):
@@ -25,6 +23,21 @@ def _reset_metrics():
 
     yield
     m._metrics = old
+
+
+def _get_counter_value(name, labels):
+    """Get the current value of a prometheus Counter."""
+    return prometheus_client.REGISTRY.get_sample_value(f"{name}_total", labels) or 0
+
+
+def _get_gauge_value(name, labels=None):
+    """Get the current value of a prometheus Gauge."""
+    return prometheus_client.REGISTRY.get_sample_value(name, labels or {}) or 0
+
+
+def _get_histogram_sum(name, labels):
+    """Get the sum of a prometheus Histogram."""
+    return prometheus_client.REGISTRY.get_sample_value(f"{name}_sum", labels) or 0
 
 
 def test_get_metrics_returns_instance():
@@ -45,12 +58,23 @@ def test_get_metrics_is_singleton():
     assert m1 is m2
 
 
+def test_celeryx_metrics_registered_by_default():
+    from django_celeryx.metrics import get_metrics
+
+    get_metrics()
+    # celeryx metrics should exist
+    names = {m.name for m in prometheus_client.REGISTRY.collect() if hasattr(m, "name")}
+    assert "celeryx_events" in names
+    assert "celeryx_task_runtime_seconds" in names
+    assert "celeryx_worker_online" in names
+    # flower metrics should NOT exist by default
+    assert "flower_events" not in names
+
+
 def test_update_metrics_from_task_event():
     from unittest.mock import MagicMock
 
-    from django_celeryx.metrics import get_metrics, update_metrics_from_event
-
-    metrics = get_metrics()
+    from django_celeryx.metrics import update_metrics_from_event
 
     state = MagicMock()
     task_mock = MagicMock()
@@ -67,40 +91,32 @@ def test_update_metrics_from_task_event():
     }
     update_metrics_from_event(event, state)
 
-    # Check event counter incremented
-    assert metrics.events.labels("worker-1", "task-started", "my.task")._value.get() > 0
+    val = _get_counter_value("celeryx_events", {"worker": "worker-1", "type": "task-started", "task": "my.task"})
+    assert val > 0
 
 
 def test_update_metrics_from_worker_event():
     from unittest.mock import MagicMock
 
-    from django_celeryx.metrics import get_metrics, update_metrics_from_event
+    from django_celeryx.metrics import update_metrics_from_event
 
-    metrics = get_metrics()
     state = MagicMock()
     state.tasks = {}
 
-    event = {
-        "type": "worker-online",
-        "hostname": "worker-1",
-    }
+    event = {"type": "worker-online", "hostname": "worker-1"}
     update_metrics_from_event(event, state)
-    assert metrics.worker_online.labels("worker-1")._value.get() == 1.0
+    assert _get_gauge_value("celeryx_worker_online", {"worker": "worker-1"}) == 1.0
 
-    event = {
-        "type": "worker-offline",
-        "hostname": "worker-1",
-    }
+    event = {"type": "worker-offline", "hostname": "worker-1"}
     update_metrics_from_event(event, state)
-    assert metrics.worker_online.labels("worker-1")._value.get() == 0.0
+    assert _get_gauge_value("celeryx_worker_online", {"worker": "worker-1"}) == 0.0
 
 
 def test_update_metrics_runtime_histogram():
     from unittest.mock import MagicMock
 
-    from django_celeryx.metrics import get_metrics, update_metrics_from_event
+    from django_celeryx.metrics import update_metrics_from_event
 
-    metrics = get_metrics()
     state = MagicMock()
     task_mock = MagicMock()
     task_mock.name = "my.task"
@@ -117,7 +133,7 @@ def test_update_metrics_runtime_histogram():
     }
     update_metrics_from_event(event, state)
 
-    assert metrics.runtime.labels("worker-1", "my.task")._sum.get() == 1.5
+    assert _get_histogram_sum("celeryx_task_runtime_seconds", {"worker": "worker-1", "task": "my.task"}) == 1.5
 
 
 def test_metrics_view():
@@ -130,4 +146,4 @@ def test_metrics_view():
     response = metrics_view(request)
     assert response.status_code == 200
     content = response.content.decode()
-    assert "flower_events_total" in content or "celeryx_tasks_total" in content
+    assert "celeryx_events" in content

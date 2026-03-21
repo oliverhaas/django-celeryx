@@ -61,6 +61,9 @@ class CeleryXSettings:
     )
     NATURAL_TIME: bool = False
 
+    # Prometheus: also register metrics under flower_* names for drop-in compat
+    PROMETHEUS_FLOWER_COMPAT: bool = False
+
 
 def _get_settings() -> CeleryXSettings:
     """Load settings from Django's CELERYX dict, falling back to defaults."""
