@@ -10,11 +10,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "-n", "--count", type=int, default=100,
+            "-n",
+            "--count",
+            type=int,
+            default=100,
             help="Number of tasks to send (default: 100)",
         )
         parser.add_argument(
-            "--slow", action="store_true",
+            "--slow",
+            action="store_true",
             help="Include slow tasks (1-5s each)",
         )
 

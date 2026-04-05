@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import contextlib
 
-import prometheus_client
 import pytest
+
+prometheus_client = pytest.importorskip("prometheus_client")
 
 
 @pytest.fixture(autouse=True)

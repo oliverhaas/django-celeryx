@@ -118,7 +118,7 @@ def get_db_alias() -> str:
             "PASSWORD": "",
             "HOST": "",
             "PORT": "",
-            "TEST": {},
+            "TEST": {"CHARSET": None, "COLLATION": None, "MIGRATE": True, "MIRROR": None, "NAME": None},
         }
         django_settings.DATABASES[CELERYX_DB_ALIAS] = db_config
 
