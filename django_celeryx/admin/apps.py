@@ -49,4 +49,4 @@ class CeleryAdminConfig(AppConfig):
                 cursor.execute("PRAGMA journal_mode=WAL;")
                 cursor.execute("PRAGMA busy_timeout=5000;")  # 5s wait on lock
 
-        connection_created.connect(_set_sqlite_pragmas)
+        connection_created.connect(_set_sqlite_pragmas, dispatch_uid="celeryx_sqlite_wal")

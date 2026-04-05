@@ -51,11 +51,17 @@ class LiveUpdateMixin:
         extra_context["live_toggle_url"] = f"?{toggle_qs}" if toggle_qs else "?"
         extra_context["live_url"] = request.get_full_path()
 
+        # Strip 'live' from request.GET so ChangeList doesn't treat it as a filter.
+        if "live" in request.GET:
+            request.GET = request.GET.copy()  # type: ignore[assignment]
+            request.GET.pop("live")  # type: ignore[misc]
+            request.META["QUERY_STRING"] = request.GET.urlencode()
+
         return super().changelist_view(request, extra_context)  # type: ignore[misc]
 
 
 @admin.register(Task)
-class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):  # type: ignore[misc]
+class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):
     """Unfold-themed admin for Celery tasks."""
 
     actions = ["revoke_selected", "terminate_selected"]  # noqa: RUF012
@@ -66,7 +72,7 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):  # type: ignore[mi
     def has_delete_permission(self, request: HttpRequest, obj: Task | None = None) -> bool:
         return False
 
-    change_list_template = "admin/django_celeryx/task/change_list.html"  # type: ignore[misc]
+    change_list_template = "admin/django_celeryx/task/change_list.html"
 
     def get_urls(self) -> list:
         urls = super().get_urls()
@@ -133,10 +139,10 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):  # type: ignore[mi
 
 
 @admin.register(Worker)
-class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, ModelAdmin):  # type: ignore[misc]
+class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, ModelAdmin):
     """Unfold-themed admin for Celery workers."""
 
-    change_list_template = "admin/django_celeryx/worker/change_list.html"  # type: ignore[misc]
+    change_list_template = "admin/django_celeryx/worker/change_list.html"
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
@@ -171,7 +177,7 @@ class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, ModelAdmin):  # type: ignor
 
 
 @admin.register(Queue)
-class QueueAdmin(LiveUpdateMixin, QueueAdminMixin, ModelAdmin):  # type: ignore[misc]
+class QueueAdmin(LiveUpdateMixin, QueueAdminMixin, ModelAdmin):
     """Unfold-themed admin for Celery queues."""
 
     def has_add_permission(self, request: HttpRequest) -> bool:
@@ -182,7 +188,7 @@ class QueueAdmin(LiveUpdateMixin, QueueAdminMixin, ModelAdmin):  # type: ignore[
 
 
 @admin.register(RegisteredTask)
-class RegisteredTaskAdmin(RegisteredTaskAdminMixin, ModelAdmin):  # type: ignore[misc]
+class RegisteredTaskAdmin(RegisteredTaskAdminMixin, ModelAdmin):
     """Unfold-themed admin for registered Celery task types."""
 
     def has_add_permission(self, request: HttpRequest) -> bool:
@@ -193,10 +199,11 @@ class RegisteredTaskAdmin(RegisteredTaskAdminMixin, ModelAdmin):  # type: ignore
 
 
 @admin.register(Dashboard)
-class DashboardAdmin(ModelAdmin):  # type: ignore[misc]
+class DashboardAdmin(LiveUpdateMixin, ModelAdmin):
     """Dashboard view using native Django admin filters."""
 
-    change_list_template = "admin/django_celeryx/dashboard/change_list.html"  # type: ignore[misc]
+    change_list_template = "admin/django_celeryx/dashboard/change_list.html"
+    show_facets = admin.ShowFacets.NEVER
 
     def get_list_filter(self, request: HttpRequest) -> list:
         from django_celeryx.admin.admin import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
@@ -214,9 +221,8 @@ class DashboardAdmin(ModelAdmin):  # type: ignore[misc]
 
     def get_queryset(self, request: HttpRequest) -> Any:
         from django_celeryx.db_models import TaskState
-        from django_celeryx.settings import get_db_alias
 
-        return TaskState.objects.using(get_db_alias()).all()
+        return TaskState.objects.none()
 
     def changelist_view(
         self,

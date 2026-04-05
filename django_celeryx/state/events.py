@@ -66,7 +66,9 @@ _TASK_ATTRS = (
     "parent_id",
     "root_id",
 )
+# Celery State attr -> DB field name. Most match; "retried" maps to "retried_at".
 _TASK_TIMESTAMPS = ("received", "started", "succeeded", "failed", "retried", "revoked")
+_TASK_TIMESTAMP_FIELD_MAP = {"retried": "retried_at"}
 _WORKER_ATTRS = ("active", "freq", "loadavg", "sw_ident", "sw_ver", "sw_sys")
 
 
@@ -92,7 +94,8 @@ def _snapshot_task(task: Any) -> dict[str, Any]:
     for attr in _TASK_TIMESTAMPS:
         val = getattr(task, attr, None)
         if val is not None:
-            fields[attr] = val
+            db_field = _TASK_TIMESTAMP_FIELD_MAP.get(attr, attr)
+            fields[db_field] = val
     return fields
 
 
@@ -236,7 +239,10 @@ class EventListener(threading.Thread):
 
                     if now - last_enable_events > _ENABLE_EVENTS_INTERVAL:
                         try:
-                            app.control.enable_events()
+                            from django_celeryx.settings import celeryx_settings
+
+                            if celeryx_settings.ENABLE_EVENTS:
+                                app.control.enable_events()
                         except Exception:
                             logger.debug("Failed to broadcast enable_events", exc_info=True)
                         last_enable_events = now

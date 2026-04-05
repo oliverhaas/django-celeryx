@@ -98,7 +98,7 @@ def update_metrics_from_event(event: dict[str, Any], state: Any) -> None:  # noq
         metrics.events.labels(worker_name, event_type, task_name).inc()
 
         runtime = event.get("runtime")
-        if runtime:
+        if runtime is not None:
             metrics.runtime.labels(worker_name, task_name).observe(runtime)
 
         if task is not None:

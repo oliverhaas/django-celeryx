@@ -6,8 +6,13 @@ Event handlers write here, admin views read from here.
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from django.db.utils import OperationalError
 
@@ -23,20 +28,20 @@ def _get_db() -> str:
     return get_db_alias()
 
 
-def _retry_on_lock(fn: object) -> object:
+def _retry_on_lock[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
     """Decorator that retries on OperationalError (e.g. SQLite 'database is locked')."""
-    import functools
 
-    @functools.wraps(fn)  # type: ignore[arg-type]
-    def wrapper(*args: object, **kwargs: object) -> object:
+    @functools.wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> R:
         for attempt in range(_MAX_RETRIES):
             try:
-                return fn(*args, **kwargs)  # type: ignore[operator]
+                return fn(*args, **kwargs)
             except OperationalError:
                 if attempt == _MAX_RETRIES - 1:
                     raise
                 time.sleep(_RETRY_DELAY * (attempt + 1))
-        return None
+        msg = "unreachable"
+        raise AssertionError(msg)
 
     return wrapper
 
@@ -84,7 +89,7 @@ def persist_worker_event(hostname: str, **fields: object) -> None:
 
         db = _get_db()
         now = time.time()
-        clean = {k: v for k, v in fields.items() if hasattr(WorkerState, k) and v is not None}
+        clean = {k: v for k, v in fields.items() if hasattr(WorkerState, k) and v is not None and v != ""}
         clean["updated_at"] = now
 
         updated = WorkerState.objects.using(db).filter(hostname=hostname).update(**clean)

@@ -8,8 +8,8 @@ CELERYX = {
     "CELERY_APP": None,
 
     # Database alias for storing task/worker state.
-    # None = auto-configured in-memory SQLite (lost on restart).
-    # Set to a DATABASES alias to persist (e.g. "default", "celeryx").
+    # None = auto-configured dedicated SQLite file (celeryx.sqlite3).
+    # Set to a DATABASES alias to use your own database (e.g. "default", "celeryx").
     "DATABASE": None,
 
     # Maximum age of stored task records in seconds (default 24h).
@@ -42,12 +42,15 @@ CELERYX = {
 
     # Use relative timestamps (e.g. "5 minutes ago") instead of absolute.
     "NATURAL_TIME": False,
+
+    # Prometheus metric name prefix. Set to "flower" for Flower drop-in compat.
+    "PROMETHEUS_PREFIX": "django_celeryx",
 }
 ```
 
 ## Database Persistence
 
-By default, django-celeryx stores all state in an auto-configured in-memory SQLite database. This means data is lost on restart. To persist across restarts, configure a database:
+By default, django-celeryx stores all state in an auto-configured SQLite file database (`celeryx.sqlite3`) placed alongside your default database. To use a different database backend:
 
 ```python
 # Option 1: Use an explicit database

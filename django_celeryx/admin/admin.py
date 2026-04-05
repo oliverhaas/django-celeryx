@@ -62,8 +62,8 @@ class LiveUpdateMixin:
         # Strip 'live' from request.GET so ChangeList doesn't treat it as a filter.
         # Also update QUERY_STRING so get_full_path() stays consistent.
         if "live" in request.GET:
-            request.GET = request.GET.copy()
-            request.GET.pop("live")
+            request.GET = request.GET.copy()  # type: ignore[assignment]
+            request.GET.pop("live")  # type: ignore[misc]
             request.META["QUERY_STRING"] = request.GET.urlencode()
 
         return super().changelist_view(request, extra_context)  # type: ignore[misc]
@@ -211,15 +211,15 @@ class DashboardPeriodFilter(admin.SimpleListFilter):
     parameter_name = "period"
 
     def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
-        return [("today", _("Today")), ("7d", _("Last 7 days")), ("30d", _("Last 30 days"))]
+        return [("today", str(_("Today"))), ("7d", str(_("Last 7 days"))), ("30d", str(_("Last 30 days")))]
 
     def queryset(self, request: HttpRequest, queryset: Any) -> Any:
-
         deltas = {"today": 1, "7d": 7, "30d": 30}
-        if self.value() in deltas:
+        value = self.value()
+        if value is not None and value in deltas:
             import time
 
-            cutoff = time.time() - deltas[self.value()] * 86400
+            cutoff = time.time() - deltas[value] * 86400
             return queryset.filter(updated_at__gte=cutoff)
         return queryset
 
@@ -285,7 +285,7 @@ else:
 
 
 @admin.register(Dashboard)
-class DashboardAdmin(LiveUpdateMixin, _DashboardBase):  # type: ignore[misc]
+class DashboardAdmin(LiveUpdateMixin, _DashboardBase):
     """Dashboard view using native Django admin filters."""
 
     change_list_template = "admin/django_celeryx/dashboard/change_list.html"  # type: ignore[misc]
@@ -323,7 +323,7 @@ class DashboardAdmin(LiveUpdateMixin, _DashboardBase):  # type: ignore[misc]
 
         qs = _TaskState.objects.using(get_db_alias()).all()
         for f_cls in self.list_filter:
-            f = f_cls(request, request.GET.copy(), _TaskState, self)
+            f = f_cls(request, request.GET.copy(), _TaskState, self)  # type: ignore[operator]
             qs = f.queryset(request, qs) or qs
 
         extra_context.update(compute_dashboard_context(qs, period=request.GET.get("period", "")))

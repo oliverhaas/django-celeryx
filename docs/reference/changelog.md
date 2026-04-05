@@ -5,6 +5,6 @@
 - Initial release
 - Event-driven task and worker monitoring
 - Django admin integration with unmanaged models
-- Real-time UI with htmx + Alpine.js
+- Real-time UI with htmx + idiomorph
 - Worker control actions
 - Metrics dashboard

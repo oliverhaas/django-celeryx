@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Default database alias auto-configured when DATABASE is not set.
 CELERYX_DB_ALIAS = "celeryx"
@@ -70,7 +74,11 @@ def _get_settings() -> CeleryXSettings:
     from django.conf import settings as django_settings
 
     user_settings: dict[str, Any] = getattr(django_settings, "CELERYX", {})
-    return CeleryXSettings(**{k: v for k, v in user_settings.items() if hasattr(CeleryXSettings, k)})
+    known = {k: v for k, v in user_settings.items() if hasattr(CeleryXSettings, k)}
+    unknown = set(user_settings) - set(known)
+    if unknown:
+        logger.warning("Unknown CELERYX settings (ignored): %s", ", ".join(sorted(unknown)))
+    return CeleryXSettings(**known)
 
 
 def get_db_alias() -> str:
@@ -94,9 +102,10 @@ def get_db_alias() -> str:
         if default_name and default_name != ":memory:":
             db_dir = Path(str(default_name)).resolve().parent
         else:
-            db_dir = Path(django_settings.BASE_DIR) if hasattr(django_settings, "BASE_DIR") else Path.cwd()
+            base_dir = getattr(django_settings, "BASE_DIR", None)
+            db_dir = Path(str(base_dir)) if base_dir is not None else Path.cwd()
 
-        django_settings.DATABASES[CELERYX_DB_ALIAS] = {
+        db_config: dict[str, Any] = {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": str(db_dir / "celeryx.sqlite3"),
             "ATOMIC_REQUESTS": False,
@@ -111,6 +120,7 @@ def get_db_alias() -> str:
             "PORT": "",
             "TEST": {},
         }
+        django_settings.DATABASES[CELERYX_DB_ALIAS] = db_config
 
     return CELERYX_DB_ALIAS
 
@@ -119,10 +129,13 @@ class _LazySettings:
     """Lazy proxy that defers settings loading until first access."""
 
     _settings: CeleryXSettings | None = None
+    _lock: threading.Lock = threading.Lock()
 
     def _load(self) -> CeleryXSettings:
         if self._settings is None:
-            self._settings = _get_settings()
+            with self._lock:
+                if self._settings is None:
+                    self._settings = _get_settings()
         return self._settings
 
     def __getattr__(self, name: str) -> Any:

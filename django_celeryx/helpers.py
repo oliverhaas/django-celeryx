@@ -12,7 +12,11 @@ def get_celery_app() -> Any:
     if celeryx_settings.CELERY_APP:
         from importlib import import_module
 
-        module_path, attr = celeryx_settings.CELERY_APP.rsplit(".", 1)
+        dotted = celeryx_settings.CELERY_APP
+        if "." not in dotted:
+            msg = f"CELERYX['CELERY_APP'] must be a dotted path (e.g. 'myproject.celery.app'), got: {dotted!r}"
+            raise ValueError(msg)
+        module_path, attr = dotted.rsplit(".", 1)
         module = import_module(module_path)
         return getattr(module, attr)
 

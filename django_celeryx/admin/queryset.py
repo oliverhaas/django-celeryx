@@ -16,6 +16,7 @@ from django.utils.translation import gettext_lazy as _
 
 from django_celeryx.admin.helpers import get_celery_app
 from django_celeryx.admin.models import Queue, RegisteredTask, Task, Worker
+from django_celeryx.state.persistence import _get_db
 from django_celeryx.types import TASK_STATE_COLORS, WORKER_STATUS_COLORS, TaskState, WorkerStatus
 
 logger = logging.getLogger(__name__)
@@ -26,15 +27,9 @@ if TYPE_CHECKING:
     from django.http import HttpRequest
 
 
-def _get_db() -> str:
-    from django_celeryx.settings import get_db_alias
-
-    return get_db_alias()
-
-
 def _format_timestamp(ts: float | None) -> str:
     """Format an epoch timestamp for display, respecting NATURAL_TIME setting."""
-    if not ts:
+    if ts is None:
         return "-"
     try:
         from django_celeryx.settings import celeryx_settings
@@ -62,6 +57,14 @@ class _FakeQuery:
 
     select_related = False
     order_by: tuple[str, ...] = ()
+
+
+def _sort_data(data: list[Any], field: str, reverse: bool, numeric: bool) -> None:
+    """Sort a list of model instances by field name."""
+    if numeric:
+        data.sort(key=lambda obj: getattr(obj, field, None) or 0.0, reverse=reverse)
+    else:
+        data.sort(key=lambda obj: str(getattr(obj, field, "") or ""), reverse=reverse)
 
 
 # ======================================================================
@@ -145,14 +148,16 @@ class TaskQuerySet:
             clone._data = [t for t in clone._data if t.pk in uuids]
         return clone
 
+    _NUMERIC_FIELDS: ClassVar[set[str]] = {"received", "started", "runtime"}
+    _SORTABLE_FIELDS: ClassVar[set[str]] = {"uuid", "pk", "name", "state", "worker", "received", "started", "runtime"}
+
     def order_by(self, *fields: str) -> TaskQuerySet:
         clone = self._clone()
-        for field in fields:
+        for field in reversed(fields):
             bare = field.lstrip("-")
             reverse = field.startswith("-")
-            if bare in ("uuid", "pk", "name", "state", "worker", "received", "started", "runtime"):
-                clone._data.sort(key=lambda t: str(getattr(t, bare, "") or ""), reverse=reverse)
-                break
+            if bare in self._SORTABLE_FIELDS:
+                _sort_data(clone._data, bare, reverse, bare in self._NUMERIC_FIELDS)
         return clone
 
     def select_related(self, *args: Any) -> TaskQuerySet:
@@ -446,13 +451,16 @@ class WorkerQuerySet:
             clone._data = [w for w in clone._data if w.pk in hostnames]
         return clone
 
+    _NUMERIC_FIELDS: ClassVar[set[str]] = {"active", "processed", "concurrency"}
+    _SORTABLE_FIELDS: ClassVar[set[str]] = {"hostname", "pk", "status", "active", "processed", "concurrency"}
+
     def order_by(self, *fields: str) -> WorkerQuerySet:
         clone = self._clone()
-        for field in fields:
+        for field in reversed(fields):
             bare = field.lstrip("-")
-            if bare in ("hostname", "pk", "status", "active", "processed", "concurrency"):
-                clone._data.sort(key=lambda w: str(getattr(w, bare, "") or ""), reverse=field.startswith("-"))
-                break
+            reverse = field.startswith("-")
+            if bare in self._SORTABLE_FIELDS:
+                _sort_data(clone._data, bare, reverse, bare in self._NUMERIC_FIELDS)
         return clone
 
     def select_related(self, *args: Any) -> WorkerQuerySet:
@@ -641,11 +649,11 @@ class QueueQuerySet:
 
     def order_by(self, *fields: str) -> QueueQuerySet:
         clone = self._clone()
-        for field in fields:
+        for field in reversed(fields):
             bare = field.lstrip("-")
+            reverse = field.startswith("-")
             if bare in ("name", "pk", "consumers"):
-                clone._data.sort(key=lambda q: str(getattr(q, bare, "") or ""), reverse=field.startswith("-"))
-                break
+                _sort_data(clone._data, bare, reverse, bare == "consumers")
         return clone
 
     def select_related(self, *args: Any) -> QueueQuerySet:

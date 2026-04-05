@@ -1,14 +1,12 @@
 # Broker
 
-The broker view shows queue information and message counts.
+The broker view shows queue information from connected workers.
 
 ## Queue List
 
 - Queue name
-- Message count
-- Consumer count
+- Exchange name
+- Routing key
+- Consumer count (number of workers consuming from this queue)
 
-## Broker Info
-
-- Connection details
-- Redis-specific queue stats
+Queue data is fetched via `celery.control.inspect().active_queues()`.
