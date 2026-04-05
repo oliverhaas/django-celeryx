@@ -29,6 +29,7 @@ dump.rdb
 coverage.xml
 cobertura.xml
 CLAUDE.md
+.claude/
 site/
 *.sqlite3
 *.sqlite3-shm
