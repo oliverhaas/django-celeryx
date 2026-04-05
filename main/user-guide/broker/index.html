@@ -644,17 +644,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#broker-info" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Broker Info
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -825,17 +814,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#broker-info" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Broker Info
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -857,18 +835,15 @@
 
 
 <h1 id="broker">Broker<a class="headerlink" href="#broker" title="Permanent link">&para;</a></h1>
-<p>The broker view shows queue information and message counts.</p>
+<p>The broker view shows queue information from connected workers.</p>
 <h2 id="queue-list">Queue List<a class="headerlink" href="#queue-list" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Queue name</li>
-<li>Message count</li>
-<li>Consumer count</li>
+<li>Exchange name</li>
+<li>Routing key</li>
+<li>Consumer count (number of workers consuming from this queue)</li>
 </ul>
-<h2 id="broker-info">Broker Info<a class="headerlink" href="#broker-info" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Connection details</li>
-<li>Redis-specific queue stats</li>
-</ul>
+<p>Queue data is fetched via <code>celery.control.inspect().active_queues()</code>.</p>
 
 
 
