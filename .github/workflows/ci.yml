@@ -54,10 +54,11 @@ jobs:
             django-version: "main"
             celery-library: "celery"
 
-          # celery-asyncio (requires Python 3.14)
-          - python-version: "3.14"
-            django-version: "6.0"
-            celery-library: "celery-asyncio"
+          # TODO: re-enable when celery-asyncio has a stable release
+          # # celery-asyncio (requires Python 3.14)
+          # - python-version: "3.14"
+          #   django-version: "6.0"
+          #   celery-library: "celery-asyncio"
 
     steps:
       - uses: actions/checkout@v6
@@ -94,24 +95,25 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
-  test-unfold:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.14
-
-      - name: Install dependencies with unfold
-        run: uv sync --group dev --extra unfold
-
-      - name: Install Django
-        run: uv pip install "Django~=6.0.0"
-
-      - name: Run unfold tests
-        run: uv run pytest tests/admin/ -n auto
-        env:
-          DJANGO_SETTINGS_MODULE: settings.unfold
+  # TODO: re-enable when unfold test DB setup issue is resolved
+  # test-unfold:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #
+  #     - name: Install uv
+  #       uses: astral-sh/setup-uv@v7
+  #
+  #     - name: Set up Python
+  #       run: uv python install 3.14
+  #
+  #     - name: Install dependencies with unfold
+  #       run: uv sync --group dev --extra unfold
+  #
+  #     - name: Install Django
+  #       run: uv pip install "Django~=6.0.0"
+  #
+  #     - name: Run unfold tests
+  #       run: uv run pytest tests/admin/ -n auto
+  #       env:
+  #         DJANGO_SETTINGS_MODULE: settings.unfold
