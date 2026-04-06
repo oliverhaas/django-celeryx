@@ -1,6 +1,6 @@
 [project]
 name = "django-celeryx"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Celery monitoring and management for Django admin"
 readme = "README.md"
 license = { text = "MIT" }
@@ -56,7 +56,7 @@ dev = [
   "redis==7.4.0",
   "ruff==0.15.9",
   "testcontainers==4.14.2",
-  "ty==0.0.28",
+  "ty==0.0.29",
   "types-docker==7.1.0.20260109",
 ]
 docs = ["mkdocs==1.6.1", "mkdocs-material==9.7.3", "mike==2.1.3"]
@@ -79,25 +79,25 @@ fix = true
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-  "COM812",   # Conflicts with ruff-format
-  "D",        # Docstrings - will add incrementally
-  "E501",     # Line length handled by config
-  "EM",       # Exception strings inline are fine
-  "FBT",      # Boolean params are fine for control actions
-  "PLR0913",  # Too many args - control commands have many options
-  "PLR2004",  # Magic values like task states are domain-specific
-  "SLF001",   # Private member access needed for Celery internals
-  "TRY003",   # Long exception messages are helpful for debugging
-  "TRY300",   # return in try block is cleaner for this pattern
-  "ANN401",   # Any is correct for Celery app instances and generic admin patterns
-  "ARG002",   # Unused args: Django admin method signatures require specific params
-  "BLE001",   # Broad exception catching needed for broker/transport resilience
-  "PLC0415",  # Dynamic imports intentional (Django lazy loading, Celery app detection)
-  "SIM108",   # Ternary not always clearer
-  "TD002",    # TODO author not needed
-  "TD003",    # TODO issue link not needed
-  "FIX002",   # TODOs are fine during development
-  "ERA001",   # Commented-out code in TODO blocks is fine during development
+  "COM812",  # Conflicts with ruff-format
+  "D",       # Docstrings - will add incrementally
+  "E501",    # Line length handled by config
+  "EM",      # Exception strings inline are fine
+  "FBT",     # Boolean params are fine for control actions
+  "PLR0913", # Too many args - control commands have many options
+  "PLR2004", # Magic values like task states are domain-specific
+  "SLF001",  # Private member access needed for Celery internals
+  "TRY003",  # Long exception messages are helpful for debugging
+  "TRY300",  # return in try block is cleaner for this pattern
+  "ANN401",  # Any is correct for Celery app instances and generic admin patterns
+  "ARG002",  # Unused args: Django admin method signatures require specific params
+  "BLE001",  # Broad exception catching needed for broker/transport resilience
+  "PLC0415", # Dynamic imports intentional (Django lazy loading, Celery app detection)
+  "SIM108",  # Ternary not always clearer
+  "TD002",   # TODO author not needed
+  "TD003",   # TODO issue link not needed
+  "FIX002",  # TODOs are fine during development
+  "ERA001",  # Commented-out code in TODO blocks is fine during development
 ]
 
 [tool.ruff.lint.flake8-annotations]
@@ -181,7 +181,11 @@ include = ["django_celeryx/unfold/**", "django_celeryx/metrics.py"]
 unresolved-import = "ignore"
 
 [[tool.ty.overrides]]
-include = ["django_celeryx/admin/admin.py", "django_celeryx/admin/queryset.py", "django_celeryx/unfold/admin.py"]
+include = [
+  "django_celeryx/admin/admin.py",
+  "django_celeryx/admin/queryset.py",
+  "django_celeryx/unfold/admin.py",
+]
 
 [tool.ty.overrides.rules]
 invalid-assignment = "ignore"
@@ -209,11 +213,7 @@ testpaths = ["tests"]
 xfail_strict = true
 
 [tool.coverage.run]
-omit = [
-  "tests/*",
-  "django_celeryx/unfold/*",
-  "django_celeryx/types.py",
-]
+omit = ["tests/*", "django_celeryx/unfold/*", "django_celeryx/types.py"]
 
 [tool.coverage.report]
 precision = 2
