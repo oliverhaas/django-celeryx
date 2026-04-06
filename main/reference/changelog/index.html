@@ -749,10 +749,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#010-unreleased" class="md-nav__link">
+  <a href="#010a2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        0.1.0 (Unreleased)
+        0.1.0a2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010a1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.0a1
       
     </span>
   </a>
@@ -802,10 +813,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#010-unreleased" class="md-nav__link">
+  <a href="#010a2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        0.1.0 (Unreleased)
+        0.1.0a2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010a1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.0a1
       
     </span>
   </a>
@@ -833,14 +855,35 @@
 
 
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
-<h2 id="010-unreleased">0.1.0 (Unreleased)<a class="headerlink" href="#010-unreleased" title="Permanent link">&para;</a></h2>
+<h2 id="010a2">0.1.0a2<a class="headerlink" href="#010a2" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Initial release</li>
+<li>Production-ready audit: fix type errors, config alignment, documentation accuracy</li>
+<li>Fix <code>retried</code> timestamp silently dropped (field name mismatch with DB model)</li>
+<li>Fix <code>ENABLE_EVENTS</code> setting not being checked before broadcasting</li>
+<li>Fix <code>persist_worker_event</code> allowing empty strings to overwrite values</li>
+<li>Fix <code>_format_timestamp</code> treating <code>0.0</code> as no-data</li>
+<li>Fix <code>order_by</code> ignoring multi-field sort and sorting numeric fields as strings</li>
+<li>Fix Prometheus metrics dropping <code>runtime=0.0</code> events</li>
+<li>Fix signal handler accumulating duplicates (add <code>dispatch_uid</code>)</li>
+<li>Fix unfold <code>LiveUpdateMixin</code> not stripping <code>live</code> param from request</li>
+<li>Fix unfold <code>DashboardAdmin</code> loading full table, missing <code>LiveUpdateMixin</code> and <code>show_facets</code></li>
+<li>Validate <code>CELERY_APP</code> dotted path, warn on unknown settings keys</li>
+<li>Thread-safe <code>_LazySettings</code> with double-checked locking</li>
+<li>Update dev dependencies (django-stubs 6.0.2, mypy 1.20, ruff 0.15.9, ty 0.0.29)</li>
+<li>Fix documentation: "in-memory SQLite" → "dedicated SQLite file", accurate dashboard/broker docs</li>
+<li>Document <code>PROMETHEUS_PREFIX</code> setting</li>
+<li>Remove stale planning docs</li>
+</ul>
+<h2 id="010a1">0.1.0a1<a class="headerlink" href="#010a1" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Initial alpha release</li>
 <li>Event-driven task and worker monitoring</li>
 <li>Django admin integration with unmanaged models</li>
 <li>Real-time UI with htmx + idiomorph</li>
 <li>Worker control actions</li>
 <li>Metrics dashboard</li>
+<li>Prometheus metrics endpoint</li>
+<li>Configurable metric prefix (<code>PROMETHEUS_PREFIX</code>)</li>
 </ul>
 
 
