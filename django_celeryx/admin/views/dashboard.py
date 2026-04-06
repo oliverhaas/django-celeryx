@@ -1,4 +1,4 @@
-"""Dashboard view — computes stats and passes JSON data for Chart.js rendering."""
+"""Dashboard view - computes stats and passes JSON data for Chart.js rendering."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def _chart_slowest(qs: Any) -> str:
             .values("name")
             .annotate(avg_rt=Avg("runtime"), std_rt=StdDev("runtime"), cnt=Count("id"))
             .filter(cnt__gte=2)
-            .order_by("-avg_rt")[:10]
+            .order_by("-avg_rt")[:10],
         )
         if not rows:
             return json.dumps({"labels": [], "avg": [], "std": []})
@@ -66,7 +66,7 @@ def _chart_slowest(qs: Any) -> str:
                 "labels": [_short_name(r["name"]) for r in rows],
                 "avg": [round(r["avg_rt"], 3) for r in rows],
                 "std": [round(r["std_rt"] or 0, 3) for r in rows],
-            }
+            },
         )
     except Exception:
         return json.dumps({"labels": [], "avg": [], "std": []})
@@ -82,7 +82,7 @@ def _chart_failure_rate(qs: Any) -> str:
             .values("name")
             .annotate(total=Count("id"), failed=Count("id", filter=Q(state="FAILURE")))
             .filter(total__gte=2)
-            .order_by("-total")[:15]
+            .order_by("-total")[:15],
         )
         rated = sorted(
             [(r["name"], r["failed"] / r["total"] * 100, r["total"]) for r in rows if r["failed"] > 0],
@@ -96,7 +96,7 @@ def _chart_failure_rate(qs: Any) -> str:
                 "labels": [_short_name(n) for n, _, _ in rated],
                 "rates": [round(r, 1) for _, r, _ in rated],
                 "counts": [f"{c} tasks" for _, _, c in rated],
-            }
+            },
         )
     except Exception:
         return json.dumps({"labels": [], "rates": [], "counts": []})
@@ -114,7 +114,7 @@ def _chart_worker_load(qs: Any) -> str:
             {
                 "labels": [r["worker"].split("@")[0] if "@" in r["worker"] else r["worker"] for r in rows],
                 "values": [r["count"] for r in rows],
-            }
+            },
         )
     except Exception:
         return json.dumps({"labels": [], "values": []})
@@ -154,7 +154,7 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
     total_completed = total_succeeded + total_failed + state_counts.get("REVOKED", 0)
     total_active = state_counts.get("STARTED", 0) + state_counts.get("RECEIVED", 0) + state_counts.get("PENDING", 0)
 
-    # Throughput — always provide data (even if all zeros)
+    # Throughput - always provide data (even if all zeros)
     throughput_data = _get_throughput(qs, period)
     if throughput_data:
         chartjs_throughput = json.dumps(
@@ -162,7 +162,7 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
                 "labels": [r[0] for r in throughput_data],
                 "succeeded": [r[1] for r in throughput_data],
                 "failed": [r[2] for r in throughput_data],
-            }
+            },
         )
     else:
         chartjs_throughput = json.dumps({"labels": [], "succeeded": [], "failed": []})
@@ -173,7 +173,7 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
         {
             "labels": [_short_name(n) for n, _ in items],
             "values": [c for _, c in items],
-        }
+        },
     )
 
     return {

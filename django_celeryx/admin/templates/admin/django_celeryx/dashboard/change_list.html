@@ -74,7 +74,7 @@
     [data-theme="dark"] .celeryx-color-active { color: #f0ad4e; }
 </style>
 <script>
-/* Chart.js dashboard renderer — creates on first load, updates in-place on htmx morph */
+/* Chart.js dashboard renderer - creates on first load, updates in-place on htmx morph */
 window._cxCharts = window._cxCharts || {};
 
 window._cxRenderDashboard = function() {
@@ -106,7 +106,7 @@ window._cxRenderDashboard = function() {
     };
     const mkTitle = (t) => ({ display: true, text: t, color: C.title, font: { size: 14, weight: '500' }, padding: { bottom: 12 } });
 
-    /* Colors are applied via CSS classes — no JS needed */
+    /* Colors are applied via CSS classes - no JS needed */
     Chart.defaults.font = { ...Chart.defaults.font, family: "'Segoe UI', system-ui, Roboto, sans-serif" };
 
     /* Helper: update chart data in-place or create new */
@@ -115,7 +115,7 @@ window._cxRenderDashboard = function() {
         if (!canvas) return;
         const existing = window._cxCharts[id];
         if (existing && !existing.ctx.canvas.isConnected) {
-            /* Canvas was replaced by morph — destroy stale reference */
+            /* Canvas was replaced by morph - destroy stale reference */
             existing.destroy();
             delete window._cxCharts[id];
         }

@@ -1,7 +1,7 @@
 """QuerySet-like objects and admin mixins for task, worker, and queue list views.
 
 All data reads come from the database (TaskState, WorkerState models).
-The database is the single source of truth — there is no separate in-memory store.
+The database is the single source of truth - there is no separate in-memory store.
 """
 
 from __future__ import annotations
@@ -271,7 +271,10 @@ class TaskAdminMixin:
         return TaskQuerySet()
 
     def get_search_results(
-        self, request: HttpRequest, queryset: TaskQuerySet, search_term: str
+        self,
+        request: HttpRequest,
+        queryset: TaskQuerySet,
+        search_term: str,
     ) -> tuple[TaskQuerySet, bool]:
         if not search_term:
             return queryset, False
@@ -527,7 +530,7 @@ class WorkerAdminMixin:
                 extra_context["monitoring_since"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
         except Exception:
             extra_context.update(
-                {"total_active": 0, "total_processed": 0, "total_succeeded": 0, "total_failed": 0, "total_retried": 0}
+                {"total_active": 0, "total_processed": 0, "total_succeeded": 0, "total_failed": 0, "total_retried": 0},
             )
         return super().changelist_view(request, extra_context)  # type: ignore[misc]
 
@@ -535,7 +538,10 @@ class WorkerAdminMixin:
         return WorkerQuerySet()
 
     def get_search_results(
-        self, request: HttpRequest, queryset: WorkerQuerySet, search_term: str
+        self,
+        request: HttpRequest,
+        queryset: WorkerQuerySet,
+        search_term: str,
     ) -> tuple[WorkerQuerySet, bool]:
         if not search_term:
             return queryset, False
@@ -677,7 +683,10 @@ class QueueAdminMixin:
         return QueueQuerySet()
 
     def get_search_results(
-        self, request: HttpRequest, queryset: QueueQuerySet, search_term: str
+        self,
+        request: HttpRequest,
+        queryset: QueueQuerySet,
+        search_term: str,
     ) -> tuple[QueueQuerySet, bool]:
         if not search_term:
             return queryset, False
@@ -790,7 +799,10 @@ class RegisteredTaskAdminMixin:
         return RegisteredTaskQuerySet()
 
     def get_search_results(
-        self, request: HttpRequest, queryset: RegisteredTaskQuerySet, search_term: str
+        self,
+        request: HttpRequest,
+        queryset: RegisteredTaskQuerySet,
+        search_term: str,
     ) -> tuple[RegisteredTaskQuerySet, bool]:
         if not search_term:
             return queryset, False

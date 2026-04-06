@@ -125,7 +125,7 @@ def _handle_event(event: dict) -> None:
         (obj, _created), _group = state.event(event)
 
         if hasattr(obj, "uuid"):
-            # Snapshot immediately — merge with any existing buffered snapshot
+            # Snapshot immediately - merge with any existing buffered snapshot
             snap = _task_snapshots.get(obj.uuid, {})
             snap.update(_snapshot_task(obj))
             _task_snapshots[obj.uuid] = snap
@@ -134,7 +134,7 @@ def _handle_event(event: dict) -> None:
             snap.update(_snapshot_worker(obj))
             _worker_snapshots[obj.hostname] = snap
 
-    # Update Prometheus metrics (outside lock — metrics are thread-safe)
+    # Update Prometheus metrics (outside lock - metrics are thread-safe)
     from django_celeryx.metrics import update_metrics_from_event
 
     update_metrics_from_event(event, _get_state())
@@ -144,7 +144,7 @@ def _flush_to_db() -> None:
     """Write buffered snapshots to the database."""
     from django_celeryx.state.persistence import persist_task_event, persist_worker_event
 
-    # Swap out buffers under lock (fast — just dict swap)
+    # Swap out buffers under lock (fast - just dict swap)
     with _state_lock:
         tasks = _task_snapshots.copy()
         _task_snapshots.clear()
@@ -156,13 +156,13 @@ def _flush_to_db() -> None:
         try:
             persist_task_event(uuid, **fields)
         except Exception:
-            logger.debug("Failed to persist task %s", uuid, exc_info=True)
+            logger.warning("Failed to persist task %s", uuid, exc_info=True)
 
     for hostname, fields in workers.items():
         try:
             persist_worker_event(hostname, **fields)
         except Exception:
-            logger.debug("Failed to persist worker %s", hostname, exc_info=True)
+            logger.warning("Failed to persist worker %s", hostname, exc_info=True)
 
 
 class EventListener(threading.Thread):
@@ -189,9 +189,9 @@ class EventListener(threading.Thread):
             conn = connections[get_db_alias()]
             conn.ensure_connection()
             if conn.vendor == "sqlite":
-                cursor = conn.cursor()
-                cursor.execute("PRAGMA journal_mode=WAL;")
-                cursor.execute("PRAGMA busy_timeout=5000;")
+                with conn.cursor() as cursor:
+                    cursor.execute("PRAGMA journal_mode=WAL;")
+                    cursor.execute("PRAGMA busy_timeout=5000;")
         except Exception:
             logger.debug("Failed to set SQLite pragmas", exc_info=True)
 

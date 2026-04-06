@@ -31,13 +31,13 @@ That's it. Start your Django server and navigate to the admin to see your Celery
 
 ## Features
 
-- **Real-time task monitoring** — Live task list with state, args, result, timing, auto-refreshing via htmx
-- **Worker management** — View worker status, pool info, active queues, configuration
-- **Control actions** — Revoke/terminate tasks, shutdown/restart workers, manage pools and queues
-- **Broker overview** — Queue names, routing keys, consumer counts
-- **Django admin native** — Looks and feels like standard Django admin, no separate service to run
-- **Database persistence** — All state persisted to database (dedicated SQLite file by default, or any Django database)
-- **Registered tasks** — Browse all registered task types, link to filtered task list
+- **Real-time task monitoring** - Live task list with state, args, result, timing, auto-refreshing via htmx
+- **Worker management** - View worker status, pool info, active queues, configuration
+- **Control actions** - Revoke/terminate tasks, shutdown/restart workers, manage pools and queues
+- **Broker overview** - Queue names, routing keys, consumer counts
+- **Django admin native** - Looks and feels like standard Django admin, no separate service to run
+- **Database persistence** - All state persisted to database (dedicated SQLite file by default, or any Django database)
+- **Registered tasks** - Browse all registered task types, link to filtered task list
 
 ## Task Monitoring
 

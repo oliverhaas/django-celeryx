@@ -8,14 +8,14 @@ The metric prefix is configurable via ``CELERYX["PROMETHEUS_PREFIX"]``
 
 Default metrics:
 
-- ``django_celeryx_events_total`` — Counter(worker, type, task)
-- ``django_celeryx_task_runtime_seconds`` — Histogram(worker, task)
-- ``django_celeryx_task_prefetch_time_seconds`` — Gauge(worker, task)
-- ``django_celeryx_task_prefetch_count`` — Gauge(worker, task)
-- ``django_celeryx_worker_online`` — Gauge(worker)
-- ``django_celeryx_worker_executing_tasks`` — Gauge(worker)
-- ``django_celeryx_tasks_total`` — Gauge of total tasks in the database
-- ``django_celeryx_tasks_active`` — Gauge of active (non-terminal) tasks
+- ``django_celeryx_events_total`` - Counter(worker, type, task)
+- ``django_celeryx_task_runtime_seconds`` - Histogram(worker, task)
+- ``django_celeryx_task_prefetch_time_seconds`` - Gauge(worker, task)
+- ``django_celeryx_task_prefetch_count`` - Gauge(worker, task)
+- ``django_celeryx_worker_online`` - Gauge(worker)
+- ``django_celeryx_worker_executing_tasks`` - Gauge(worker)
+- ``django_celeryx_tasks_total`` - Gauge of total tasks in the database
+- ``django_celeryx_tasks_active`` - Gauge of active (non-terminal) tasks
 """
 
 from __future__ import annotations
@@ -49,13 +49,20 @@ class _PrometheusMetrics:
 
         self.events = Counter(f"{p}_events_total", "Number of Celery events", ["worker", "type", "task"])
         self.runtime = Histogram(
-            f"{p}_task_runtime_seconds", "Task runtime", ["worker", "task"], buckets=_RUNTIME_BUCKETS
+            f"{p}_task_runtime_seconds",
+            "Task runtime",
+            ["worker", "task"],
+            buckets=_RUNTIME_BUCKETS,
         )
         self.prefetch_time = Gauge(
-            f"{p}_task_prefetch_time_seconds", "Time between task received and started", ["worker", "task"]
+            f"{p}_task_prefetch_time_seconds",
+            "Time between task received and started",
+            ["worker", "task"],
         )
         self.number_of_prefetched_tasks = Gauge(
-            f"{p}_task_prefetch_count", "Number of prefetched tasks", ["worker", "task"]
+            f"{p}_task_prefetch_count",
+            "Number of prefetched tasks",
+            ["worker", "task"],
         )
         self.worker_online = Gauge(f"{p}_worker_online", "Worker online status", ["worker"])
         self.worker_executing = Gauge(f"{p}_worker_executing_tasks", "Currently executing tasks on worker", ["worker"])
@@ -166,7 +173,7 @@ def _update_db_gauges() -> None:
         db = get_db_alias()
         metrics.tasks_total.set(TaskState.objects.using(db).count())
         metrics.tasks_active.set(
-            TaskState.objects.using(db).filter(state__in=("PENDING", "RECEIVED", "STARTED", "RETRY")).count()
+            TaskState.objects.using(db).filter(state__in=("PENDING", "RECEIVED", "STARTED", "RETRY")).count(),
         )
     except Exception:
         logger.debug("Failed to update DB gauges", exc_info=True)

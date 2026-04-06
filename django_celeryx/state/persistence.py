@@ -40,8 +40,7 @@ def _retry_on_lock[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
                 if attempt == _MAX_RETRIES - 1:
                     raise
                 time.sleep(_RETRY_DELAY * (attempt + 1))
-        msg = "unreachable"
-        raise AssertionError(msg)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     return wrapper
 
@@ -72,7 +71,7 @@ def persist_task_event(uuid: str, **fields: object) -> None:
     except OperationalError:
         raise
     except Exception:
-        logger.debug("Failed to persist task state %s", uuid, exc_info=True)
+        logger.warning("Failed to persist task state %s", uuid, exc_info=True)
 
 
 @_retry_on_lock
@@ -101,7 +100,7 @@ def persist_worker_event(hostname: str, **fields: object) -> None:
     except OperationalError:
         raise
     except Exception:
-        logger.debug("Failed to persist worker state %s", hostname, exc_info=True)
+        logger.warning("Failed to persist worker state %s", hostname, exc_info=True)
 
 
 def cleanup_old_tasks() -> int:
@@ -131,7 +130,7 @@ def cleanup_old_tasks() -> int:
             logger.info("Cleaned up %d old task records", total_deleted)
         return total_deleted
     except Exception:
-        logger.debug("Failed to clean up old tasks", exc_info=True)
+        logger.warning("Failed to clean up old tasks", exc_info=True)
         return 0
 
 

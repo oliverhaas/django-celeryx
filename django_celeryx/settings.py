@@ -143,7 +143,8 @@ class _LazySettings:
 
     def reload(self) -> None:
         """Force reload settings (useful for tests)."""
-        self._settings = None
+        with self._lock:
+            self._settings = None
 
 
 celeryx_settings = _LazySettings()

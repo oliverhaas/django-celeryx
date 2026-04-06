@@ -9,7 +9,7 @@ Include in your project's urlconf::
 
 This exposes:
 
-- ``/celeryx/metrics/`` — Prometheus metrics endpoint (requires ``prometheus-client``)
+- ``/celeryx/metrics/`` - Prometheus metrics endpoint (requires ``prometheus-client``)
 """
 
 from __future__ import annotations
