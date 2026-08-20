@@ -11,9 +11,8 @@ class UnfoldCeleryAdminConfig(AppConfig):
     name = "django_celeryx.unfold"
     label = "django_celeryx"
     verbose_name = "django-celeryx"
-    # Templates and static files live in the sibling admin package. That app is
-    # never installed at the same time (both use the "django_celeryx" label), so
-    # its app directory is not on the template loader path unless we point at it.
+    # Templates live in the sibling admin package, which is never installed
+    # alongside this one (same app label).
     path = str(Path(django_celeryx.admin.__file__).resolve().parent)
 
     def ready(self):

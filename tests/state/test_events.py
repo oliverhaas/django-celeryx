@@ -47,7 +47,6 @@ class TestHandleEvent:
         events._handle_event(_task_event("task-succeeded", "t1", result="42", runtime=0.5))
 
         snap = events._task_snapshots["t1"]
-        # The name came from the earlier event and must survive the merge.
         assert snap["name"] == "proj.add"
         assert snap["state"] == "SUCCESS"
         assert snap["runtime"] == 0.5

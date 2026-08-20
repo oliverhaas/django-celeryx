@@ -36,7 +36,6 @@ class TestDashboardEscaping:
         assert block is not None, "dashboard did not render the cx-data JSON block"
         assert PAYLOAD not in block.group(1)
         assert "\\u003C" in block.group(1)
-        # The raw payload must not appear anywhere in the page as live markup.
         assert "<script>alert(1)</script>" not in content
 
     def test_worker_hostname_cannot_close_the_script_tag(self, admin_client):
