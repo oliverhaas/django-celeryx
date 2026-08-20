@@ -3,7 +3,9 @@
 
 {% block object-tools-items %}
   {{ block.super }}
+  {% if has_change_permission %}
   <li>
     <a href="{% url 'admin:django_celeryx_task_apply' %}">{% translate "Send Task" %}</a>
   </li>
+  {% endif %}
 {% endblock %}

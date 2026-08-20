@@ -1,9 +1,8 @@
-"""Dashboard view - computes stats and passes JSON data for Chart.js rendering."""
+"""Dashboard view: computes stats and chart data for Chart.js rendering."""
 
 from __future__ import annotations
 
 import datetime
-import json
 from typing import Any
 
 # Period -> (total_seconds, target_bins, label_format)
@@ -46,8 +45,8 @@ def _short_name(name: str) -> str:
     return ".".join(parts[-2:]) if len(parts) > 1 else name
 
 
-def _chart_slowest(qs: Any) -> str:
-    """Compute slowest tasks JSON (avg runtime + stddev)."""
+def _chart_slowest(qs: Any) -> dict[str, Any]:
+    """Compute slowest tasks chart data (avg runtime + stddev)."""
     try:
         from django.db.models import Avg, Count, StdDev
 
@@ -60,20 +59,18 @@ def _chart_slowest(qs: Any) -> str:
             .order_by("-avg_rt")[:10],
         )
         if not rows:
-            return json.dumps({"labels": [], "avg": [], "std": []})
-        return json.dumps(
-            {
-                "labels": [_short_name(r["name"]) for r in rows],
-                "avg": [round(r["avg_rt"], 3) for r in rows],
-                "std": [round(r["std_rt"] or 0, 3) for r in rows],
-            },
-        )
+            return {"labels": [], "avg": [], "std": []}
+        return {
+            "labels": [_short_name(r["name"]) for r in rows],
+            "avg": [round(r["avg_rt"], 3) for r in rows],
+            "std": [round(r["std_rt"] or 0, 3) for r in rows],
+        }
     except Exception:
-        return json.dumps({"labels": [], "avg": [], "std": []})
+        return {"labels": [], "avg": [], "std": []}
 
 
-def _chart_failure_rate(qs: Any) -> str:
-    """Compute failure rate by task JSON."""
+def _chart_failure_rate(qs: Any) -> dict[str, Any]:
+    """Compute failure rate by task chart data."""
     try:
         from django.db.models import Count, Q
 
@@ -90,34 +87,30 @@ def _chart_failure_rate(qs: Any) -> str:
             reverse=True,
         )[:10]
         if not rated:
-            return json.dumps({"labels": [], "rates": [], "counts": []})
-        return json.dumps(
-            {
-                "labels": [_short_name(n) for n, _, _ in rated],
-                "rates": [round(r, 1) for _, r, _ in rated],
-                "counts": [f"{c} tasks" for _, _, c in rated],
-            },
-        )
+            return {"labels": [], "rates": [], "counts": []}
+        return {
+            "labels": [_short_name(n) for n, _, _ in rated],
+            "rates": [round(r, 1) for _, r, _ in rated],
+            "counts": [f"{c} tasks" for _, _, c in rated],
+        }
     except Exception:
-        return json.dumps({"labels": [], "rates": [], "counts": []})
+        return {"labels": [], "rates": [], "counts": []}
 
 
-def _chart_worker_load(qs: Any) -> str:
-    """Compute tasks per worker JSON."""
+def _chart_worker_load(qs: Any) -> dict[str, Any]:
+    """Compute tasks per worker chart data."""
     try:
         from django.db.models import Count
 
         rows = list(qs.exclude(worker="").values("worker").annotate(count=Count("id")).order_by("-count")[:10])
         if not rows:
-            return json.dumps({"labels": [], "values": []})
-        return json.dumps(
-            {
-                "labels": [r["worker"].split("@")[0] if "@" in r["worker"] else r["worker"] for r in rows],
-                "values": [r["count"] for r in rows],
-            },
-        )
+            return {"labels": [], "values": []}
+        return {
+            "labels": [r["worker"].split("@")[0] if "@" in r["worker"] else r["worker"] for r in rows],
+            "values": [r["count"] for r in rows],
+        }
     except Exception:
-        return json.dumps({"labels": [], "values": []})
+        return {"labels": [], "values": []}
 
 
 def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
@@ -154,27 +147,19 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
     total_completed = total_succeeded + total_failed + state_counts.get("REVOKED", 0)
     total_active = state_counts.get("STARTED", 0) + state_counts.get("RECEIVED", 0) + state_counts.get("PENDING", 0)
 
-    # Throughput - always provide data (even if all zeros)
+    # Throughput: always provide data, even if all zeros
     throughput_data = _get_throughput(qs, period)
-    if throughput_data:
-        chartjs_throughput = json.dumps(
-            {
-                "labels": [r[0] for r in throughput_data],
-                "succeeded": [r[1] for r in throughput_data],
-                "failed": [r[2] for r in throughput_data],
-            },
-        )
-    else:
-        chartjs_throughput = json.dumps({"labels": [], "succeeded": [], "failed": []})
+    chartjs_throughput = {
+        "labels": [r[0] for r in throughput_data],
+        "succeeded": [r[1] for r in throughput_data],
+        "failed": [r[2] for r in throughput_data],
+    }
 
-    # Top tasks
     items = top_tasks[:10]
-    chartjs_top_tasks = json.dumps(
-        {
-            "labels": [_short_name(n) for n, _ in items],
-            "values": [c for _, c in items],
-        },
-    )
+    chartjs_top_tasks = {
+        "labels": [_short_name(n) for n, _ in items],
+        "values": [c for _, c in items],
+    }
 
     return {
         "total_tasks": total,
@@ -183,9 +168,13 @@ def compute_dashboard_context(qs: Any, period: str = "") -> dict[str, Any]:
         "total_active": total_active,
         "success_rate": f"{total_succeeded / total_completed * 100:.1f}%" if total_completed > 0 else "-",
         "avg_runtime": avg_runtime,
-        "chartjs_throughput": chartjs_throughput,
-        "chartjs_top_tasks": chartjs_top_tasks,
-        "chartjs_slowest": _chart_slowest(qs),
-        "chartjs_failure_rate": _chart_failure_rate(qs),
-        "chartjs_worker_load": _chart_worker_load(qs),
+        # Rendered through the json_script filter, which escapes <, > and &
+        # so task names and worker hostnames cannot break out of the tag.
+        "chartjs_data": {
+            "tp": chartjs_throughput,
+            "tk": chartjs_top_tasks,
+            "sl": _chart_slowest(qs),
+            "fr": _chart_failure_rate(qs),
+            "wl": _chart_worker_load(qs),
+        },
     }

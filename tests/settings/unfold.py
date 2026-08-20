@@ -54,6 +54,11 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
 CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
 
+# Mirror settings/base.py: pin to the default alias so pytest-django's test
+# database is used instead of auto-configuring a real celeryx.sqlite3 file.
 CELERYX = {
     "EVENT_LISTENER_AUTOSTART": False,
+    "DATABASE": "default",
 }
+
+DATABASE_ROUTERS = ["django_celeryx.db_router.CeleryXRouter"]

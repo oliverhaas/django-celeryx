@@ -125,7 +125,7 @@ def _handle_event(event: dict) -> None:
         (obj, _created), _group = state.event(event)
 
         if hasattr(obj, "uuid"):
-            # Snapshot immediately - merge with any existing buffered snapshot
+            # Snapshot immediately, merging with any existing buffered snapshot
             snap = _task_snapshots.get(obj.uuid, {})
             snap.update(_snapshot_task(obj))
             _task_snapshots[obj.uuid] = snap
@@ -134,7 +134,7 @@ def _handle_event(event: dict) -> None:
             snap.update(_snapshot_worker(obj))
             _worker_snapshots[obj.hostname] = snap
 
-    # Update Prometheus metrics (outside lock - metrics are thread-safe)
+    # Update Prometheus metrics outside the lock; they are thread-safe
     from django_celeryx.metrics import update_metrics_from_event
 
     update_metrics_from_event(event, _get_state())
@@ -144,7 +144,7 @@ def _flush_to_db() -> None:
     """Write buffered snapshots to the database."""
     from django_celeryx.state.persistence import persist_task_event, persist_worker_event
 
-    # Swap out buffers under lock (fast - just dict swap)
+    # Swap out buffers under the lock; this is just a dict swap
     with _state_lock:
         tasks = _task_snapshots.copy()
         _task_snapshots.clear()
@@ -217,8 +217,9 @@ class EventListener(threading.Thread):
         last_enable_events = 0.0
         last_cleanup = time.monotonic()
 
-        # Start flush timer
-        flush_timer = _FlushTimer(self._stop_event)
+        # Start flush timer. It owns its own stop event so that stopping it in
+        # the finally block below does not also stop the reconnect loop.
+        flush_timer = _FlushTimer()
         flush_timer.start()
 
         try:
@@ -257,6 +258,7 @@ class EventListener(threading.Thread):
                         last_cleanup = now
         finally:
             flush_timer.stop()
+            flush_timer.join(timeout=_FLUSH_INTERVAL * 4)
             _flush_to_db()  # Final flush
 
 
@@ -265,9 +267,9 @@ class _FlushTimer(threading.Thread):
 
     daemon = True
 
-    def __init__(self, stop_event: threading.Event) -> None:
+    def __init__(self) -> None:
         super().__init__(name="celeryx-flush-timer")
-        self._stop_event = stop_event
+        self._stop_event = threading.Event()
 
     def stop(self) -> None:
         self._stop_event.set()

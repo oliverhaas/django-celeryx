@@ -62,6 +62,7 @@
         {% endif %}
     </fieldset>
 
+{% if can_control %}
     <fieldset class="module aligned">
         <h2>{% translate 'Pool Controls' %}</h2>
         <div class="celeryx-controls">
@@ -98,6 +99,7 @@
             </form>
         </div>
     </fieldset>
+{% endif %}
 
     {% elif current_tab == "queues" %}
     <fieldset class="module aligned">
@@ -128,6 +130,7 @@
         {% endif %}
     </fieldset>
 
+{% if can_control %}
     <fieldset class="module aligned">
         <h2>{% translate 'Consumer Controls' %}</h2>
         <div class="celeryx-controls">
@@ -146,6 +149,7 @@
             </form>
         </div>
     </fieldset>
+{% endif %}
 
     {% elif current_tab == "tasks" %}
     {% if total_processed %}
@@ -240,6 +244,7 @@
     {% endif %}
 
     {% elif current_tab == "limits" %}
+{% if can_control %}
     <fieldset class="module aligned">
         <h2>{% translate 'Set Rate Limit' %}</h2>
         <div class="celeryx-controls">
@@ -273,6 +278,7 @@
             </form>
         </div>
     </fieldset>
+{% endif %}
 
     {% if registered_tasks %}
     <fieldset class="module aligned">

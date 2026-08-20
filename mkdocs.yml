@@ -31,6 +31,16 @@ theme:
     - content.code.copy
     - content.code.annotate
 
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            members_order: source
+
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true

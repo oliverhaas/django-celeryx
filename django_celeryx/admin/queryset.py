@@ -1,7 +1,7 @@
 """QuerySet-like objects and admin mixins for task, worker, and queue list views.
 
 All data reads come from the database (TaskState, WorkerState models).
-The database is the single source of truth - there is no separate in-memory store.
+The database is the single source of truth; there is no separate in-memory store.
 """
 
 from __future__ import annotations
@@ -11,12 +11,13 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.contrib import admin
+from django.db.models import Q
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from django_celeryx.admin.helpers import get_celery_app
 from django_celeryx.admin.models import Queue, RegisteredTask, Task, Worker
-from django_celeryx.state.persistence import _get_db
+from django_celeryx.settings import get_db_alias
 from django_celeryx.types import TASK_STATE_COLORS, WORKER_STATUS_COLORS, TaskState, WorkerStatus
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,25 @@ def _format_timestamp(ts: float | None) -> str:
         return format_html("<code>{}</code>", ts)
 
 
+def _reject_unsupported_lookups(name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+    """Guard against silently ignoring a lookup these stand-in querysets can't do.
+
+    Only ``pk__in`` is implemented, which is what the admin's action checkbox
+    flow uses. Anything else would return unfiltered rows and look like a data
+    bug, so fail loudly instead.
+
+    ChangeList.get_queryset() always ends with ``qs.filter(q_object)``; when no
+    lookup params are left over that Q is empty and filtering by it is a no-op,
+    so empty Q objects pass through.
+    """
+    unsupported = sorted(set(kwargs) - {"pk__in"})
+    non_empty_q = [a for a in args if getattr(a, "children", None) or not isinstance(a, Q)]
+    if non_empty_q or unsupported:
+        detail = ", ".join(unsupported) or f"{len(non_empty_q)} positional Q object(s)"
+        msg = f"{name}.filter() only supports pk__in, got: {detail}"
+        raise NotImplementedError(msg)
+
+
 class _FakeQuery:
     """Minimal query-like object for ChangeList compatibility."""
 
@@ -72,14 +92,19 @@ def _sort_data(data: list[Any], field: str, reverse: bool, numeric: bool) -> Non
 # ======================================================================
 
 
+# The admin list views materialise rows in Python, so reads are capped. Older
+# tasks stay in the database and remain reachable by uuid on the detail page.
+MAX_ROWS = 1000
+
+
 def _tasks_from_db() -> list[Task]:
-    """Load tasks from the database."""
+    """Load the most recently updated tasks from the database."""
     try:
         from django_celeryx.db_models import TaskState
 
-        db = _get_db()
+        db = get_db_alias()
         tasks = []
-        for te in TaskState.objects.using(db).order_by("-updated_at")[:1000]:
+        for te in TaskState.objects.using(db).order_by("-updated_at")[:MAX_ROWS]:
             task = Task()
             task.uuid = te.uuid
             task.name = te.name
@@ -101,9 +126,11 @@ def _tasks_from_db() -> list[Task]:
             task.parent_id = te.parent_id
             task.root_id = te.root_id
             tasks.append(task)
+        if len(tasks) == MAX_ROWS:
+            logger.info("Task list truncated to the %d most recent records", MAX_ROWS)
         return tasks
     except Exception:
-        logger.debug("Failed to load tasks from DB", exc_info=True)
+        logger.warning("Failed to load tasks from DB", exc_info=True)
         return []
 
 
@@ -142,6 +169,7 @@ class TaskQuerySet:
         return self._data[key]
 
     def filter(self, *args: Any, **kwargs: Any) -> TaskQuerySet:
+        _reject_unsupported_lookups("TaskQuerySet", args, kwargs)
         clone = self._clone()
         if "pk__in" in kwargs:
             uuids = set(kwargs["pk__in"])
@@ -192,7 +220,7 @@ class TaskNameFilter(admin.SimpleListFilter):
         try:
             from django_celeryx.db_models import TaskState
 
-            db = _get_db()
+            db = get_db_alias()
             names = sorted(TaskState.objects.using(db).exclude(name="").values_list("name", flat=True).distinct())
             return [(n, n) for n in names]
         except Exception:
@@ -213,7 +241,7 @@ class TaskWorkerFilter(admin.SimpleListFilter):
         try:
             from django_celeryx.db_models import WorkerState
 
-            db = _get_db()
+            db = get_db_alias()
             hostnames = sorted(WorkerState.objects.using(db).values_list("hostname", flat=True))
             return [(h, h) for h in hostnames]
         except Exception:
@@ -338,7 +366,7 @@ def _workers_from_db() -> list[Worker]:
     try:
         from django_celeryx.db_models import WorkerState
 
-        db = _get_db()
+        db = get_db_alias()
         workers = []
         for we in WorkerState.objects.using(db).all():
             worker = Worker()
@@ -369,7 +397,7 @@ def _enrich_workers(workers: list[Worker]) -> None:
 
         from django_celeryx.db_models import TaskState
 
-        db = _get_db()
+        db = get_db_alias()
         by_hostname = {w.hostname: w for w in workers}
         for row in (
             TaskState.objects.using(db)
@@ -448,6 +476,7 @@ class WorkerQuerySet:
         return self._data[key]
 
     def filter(self, *args: Any, **kwargs: Any) -> WorkerQuerySet:
+        _reject_unsupported_lookups("WorkerQuerySet", args, kwargs)
         clone = self._clone()
         if "pk__in" in kwargs:
             hostnames = set(kwargs["pk__in"])
@@ -514,7 +543,7 @@ class WorkerAdminMixin:
 
             from django_celeryx.db_models import TaskState
 
-            db = _get_db()
+            db = get_db_alias()
             agg = TaskState.objects.using(db).aggregate(
                 total_active=Count("id", filter=Q(state="STARTED")),
                 total_processed=Count("id"),
@@ -647,6 +676,7 @@ class QueueQuerySet:
         return self._data[key]
 
     def filter(self, *args: Any, **kwargs: Any) -> QueueQuerySet:
+        _reject_unsupported_lookups("QueueQuerySet", args, kwargs)
         clone = self._clone()
         if "pk__in" in kwargs:
             names = set(kwargs["pk__in"])
@@ -769,6 +799,7 @@ class RegisteredTaskQuerySet:
         return self._data[key]
 
     def filter(self, *args: Any, **kwargs: Any) -> RegisteredTaskQuerySet:
+        _reject_unsupported_lookups("RegisteredTaskQuerySet", args, kwargs)
         clone = self._clone()
         if "pk__in" in kwargs:
             names = set(kwargs["pk__in"])

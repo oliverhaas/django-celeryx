@@ -148,3 +148,24 @@ def test_metrics_view():
     assert response.status_code == 200
     content = response.content.decode()
     assert "django_celeryx_events" in content
+
+
+class TestMetricsEndpoint:
+    """The /celeryx/metrics/ endpoint is unauthenticated by design."""
+
+    @pytest.mark.django_db
+    def test_endpoint_serves_prometheus_text(self, client):
+        from django.urls import reverse
+
+        response = client.get(reverse("django_celeryx:metrics"))
+
+        assert response.status_code == 200
+        assert response["Content-Type"].startswith("text/plain")
+
+    @pytest.mark.django_db
+    def test_endpoint_needs_no_login(self, client):
+        from django.urls import reverse
+
+        response = client.get(reverse("django_celeryx:metrics"))
+
+        assert response.status_code == 200

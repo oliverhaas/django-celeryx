@@ -135,11 +135,38 @@ def cleanup_old_tasks() -> int:
 
 
 def ensure_tables() -> None:
-    """Ensure celeryx database tables exist (run migrations programmatically)."""
+    """Migrate the auto-configured SQLite database on startup.
+
+    This only runs for the dedicated ``celeryx.sqlite3`` database that the
+    package creates for you. When ``CELERYX["DATABASE"]`` names one of your own
+    aliases, migrating is your job::
+
+        python manage.py migrate django_celeryx --database=<alias>
+
+    Migrating a shared database from ``AppConfig.ready()`` would run once per
+    worker process on every boot, which races and can deadlock on backends that
+    take DDL locks.
+    """
+    from django_celeryx.settings import celeryx_settings
+
+    if not celeryx_settings.AUTO_MIGRATE:
+        return
+
+    if celeryx_settings.DATABASE is not None:
+        logger.debug(
+            "CELERYX['DATABASE'] is set, skipping startup migration. "
+            "Run: manage.py migrate django_celeryx --database=%s",
+            celeryx_settings.DATABASE,
+        )
+        return
+
     try:
         from django.core.management import call_command
 
         db = _get_db()
         call_command("migrate", "django_celeryx", database=db, verbosity=0)
     except Exception:
-        logger.debug("Failed to run celeryx migrations", exc_info=True)
+        logger.warning(
+            "Failed to migrate the celeryx database; task and worker history will not be recorded until this succeeds",
+            exc_info=True,
+        )

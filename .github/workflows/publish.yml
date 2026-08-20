@@ -33,6 +33,12 @@ jobs:
       - name: Run ruff format check
         run: uv run ruff format --check
 
+      - name: Run mypy check
+        run: uv run mypy django_celeryx/
+
+      - name: Run ty check
+        run: uv run ty check django_celeryx/
+
       - name: Run tests
         run: uv run pytest -n auto
 

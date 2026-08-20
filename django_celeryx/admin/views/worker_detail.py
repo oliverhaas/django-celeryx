@@ -6,10 +6,12 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 
 from django_celeryx.admin.helpers import get_celery_app
+from django_celeryx.admin.models import Worker
 
 if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
@@ -110,7 +112,10 @@ def _dispatch_limit_action(request: HttpRequest, hostname: str, action: str) -> 
         soft = post.get("soft", "").strip()
         hard = post.get("hard", "").strip()
         set_time_limit(
-            task_name, soft=float(soft) if soft else None, hard=float(hard) if hard else None, destination=[hostname]
+            task_name,
+            soft=float(soft) if soft else None,
+            hard=float(hard) if hard else None,
+            destination=[hostname],
         )
         return f"Time limit set for {task_name}."
     return ""
@@ -129,7 +134,7 @@ _ACTION_DISPATCHERS = {
 }
 
 
-def _handle_post(request: HttpRequest, hostname: str) -> HttpResponse | None:
+def _handle_post(request: HttpRequest, hostname: str, *, can_control: bool) -> HttpResponse | None:
     """Handle worker control action POST requests."""
     if request.method != "POST":
         return None
@@ -138,6 +143,9 @@ def _handle_post(request: HttpRequest, hostname: str) -> HttpResponse | None:
     dispatcher = _ACTION_DISPATCHERS.get(action)
     if not dispatcher:
         return None
+
+    if not can_control:
+        raise PermissionDenied
 
     tab = request.GET.get("tab", "pool")
 
@@ -151,9 +159,13 @@ def _handle_post(request: HttpRequest, hostname: str) -> HttpResponse | None:
     return HttpResponseRedirect(f"{request.path}?tab={tab}")
 
 
-def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
-    """Display worker details with tabbed navigation matching Flower."""
-    response = _handle_post(request, hostname)
+def worker_detail_view(request: HttpRequest, hostname: str, *, can_control: bool = False) -> HttpResponse:
+    """Display worker details with tabbed navigation matching Flower.
+
+    ``can_control`` must reflect the caller's change permission; it gates both
+    the control forms and the POST actions behind them.
+    """
+    response = _handle_post(request, hostname, can_control=can_control)
     if response is not None:
         return response
 
@@ -182,12 +194,8 @@ def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
             "worker": worker,
             "current_tab": tab,
             "tabs": WORKER_TABS,
-            "opts": {
-                "app_label": "django_celeryx",
-                "model_name": "worker",
-                "verbose_name_plural": "Workers",
-                "app_config": type("", (), {"verbose_name": "django-celeryx"})(),
-            },
+            "can_control": can_control,
+            "opts": Worker._meta,
             # Pool tab
             "pool_type": pool_type,
             "pool_concurrency": pool_info.get("max-concurrency"),
@@ -212,6 +220,6 @@ def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
             "pid": data.get("pid"),
             "uptime": data.get("uptime"),
             "clock": data.get("clock"),
-        }
+        },
     )
     return render(request, "admin/django_celeryx/worker/change_form.html", context)
