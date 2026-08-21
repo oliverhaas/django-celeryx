@@ -31,6 +31,13 @@
   returned unfiltered rows. They raise `NotImplementedError` instead.
 - Task and worker list queries are capped at 1000 rows with a warning, instead
   of loading the whole table into memory.
+- Workers that were killed, crashed, or died while the listener was down stayed
+  "online" forever. Celery only emits worker-offline on a graceful shutdown, so
+  liveness now falls back to heartbeat age.
+- Worker control commands were sent without `reply=True`, so a command the
+  worker rejected (shrinking a busy pool) was reported as a success.
+- The worker pool tab showed `max-concurrency`, which does not change on grow or
+  shrink, making both look like no-ops. It shows the live process count now.
 
 ### Added
 

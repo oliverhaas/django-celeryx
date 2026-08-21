@@ -51,7 +51,7 @@
     <fieldset class="module aligned">
         <h2>{% translate 'Pool' %}</h2>
         <div class="form-row"><div><label>{% translate 'Type' %}:</label> <code>{{ pool_type|default:"-" }}</code></div></div>
-        <div class="form-row"><div><label>{% translate 'Concurrency' %}:</label> <code>{{ pool_concurrency|default:"-" }}</code></div></div>
+        <div class="form-row"><div><label>{% translate 'Concurrency' %}:</label> <code>{{ pool_concurrency|default:"-" }}</code>{% if pool_max_concurrency %} <span class="help">({% translate 'started with' %} {{ pool_max_concurrency }})</span>{% endif %}</div></div>
         <div class="form-row"><div><label>{% translate 'Max Tasks Per Child' %}:</label> <code>{{ pool_max_tasks_per_child|default:"-" }}</code></div></div>
         <div class="form-row"><div><label>{% translate 'Prefetch Count' %}:</label> <code>{{ prefetch_count|default:"-" }}</code></div></div>
         {% if pool_processes %}

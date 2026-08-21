@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.contrib import admin
@@ -362,6 +363,28 @@ class TaskAdminMixin:
 # ======================================================================
 
 
+# Celery expires a heartbeat at freq * 2. Give it more room here: snapshots go
+# through a flush timer, so a worker that is merely slow should not flap offline.
+_HEARTBEAT_EXPIRE_FACTOR = 4.0
+_DEFAULT_HEARTBEAT_FREQ = 2.0
+
+
+def _is_alive(status: str, last_heartbeat: float | None, freq: float | None) -> bool:
+    """Decide whether a worker counts as online.
+
+    A stored status of "online" only means the last event we saw was an online
+    event. Celery emits worker-offline on a graceful shutdown, so a worker that
+    is killed, crashes, or dies while the listener is down stays "online" in the
+    database forever. Fall back to heartbeat freshness.
+    """
+    if status == "offline":
+        return False
+    if not last_heartbeat:
+        return False
+    window = (freq or _DEFAULT_HEARTBEAT_FREQ) * _HEARTBEAT_EXPIRE_FACTOR
+    return (time.time() - last_heartbeat) <= window
+
+
 def _workers_from_db() -> list[Worker]:
     try:
         from django_celeryx.db_models import WorkerState
@@ -371,7 +394,7 @@ def _workers_from_db() -> list[Worker]:
         for we in WorkerState.objects.using(db).all():
             worker = Worker()
             worker.hostname = we.hostname
-            worker.status = we.status
+            worker.status = "online" if _is_alive(we.status, we.last_heartbeat, we.freq) else "offline"
             worker.active = we.active
             worker.freq = we.freq
             worker.sw_ident = we.sw_ident
