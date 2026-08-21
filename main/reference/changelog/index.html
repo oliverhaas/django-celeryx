@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -29,7 +29,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -50,6 +50,8 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -749,6 +751,67 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#010a3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.0a3
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.1.0a3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#010a2" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -813,6 +876,67 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#010a3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.0a3
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.1.0a3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#010a2" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -855,6 +979,60 @@
 
 
 <h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
+<h2 id="010a3">0.1.0a3<a class="headerlink" href="#010a3" title="Permanent link">&para;</a></h2>
+<h3 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Control actions now require the <code>change</code> permission. Custom admin views only
+  ran through <code>AdminSite.admin_view()</code>, which checks <code>is_staff</code> and nothing else,
+  so any staff user could revoke tasks, shut down workers, and send new tasks.
+  Task and Worker gained a <code>change</code> permission; <code>view</code> is monitoring-only.</li>
+<li>Fix stored XSS on the dashboard. Chart data was rendered with <code>|safe</code>, so a
+  task name or worker hostname containing <code>&lt;/script&gt;</code> could inject markup. The
+  data now goes through the <code>json_script</code> filter.</li>
+</ul>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The event listener stopped reconnecting after the first broker failure. The
+  flush timer shared the listener's stop event, so shutting it down also
+  cancelled the reconnect loop.</li>
+<li>The unfold app shipped no migrations and could not find its templates, so
+  <code>migrate django_celeryx</code> failed and every page raised <code>TemplateDoesNotExist</code>.</li>
+<li>The unfold dashboard raised <code>AlreadyRegistered</code> by importing the standard
+  admin module for its filters. The filters moved to <code>admin/filters.py</code>.</li>
+<li>Detail views passed a hand-built dict as <code>opts</code>, which broke unfold template
+  tags that read <code>opts.app_label</code> in Python. They pass the model <code>_meta</code> now.</li>
+<li><code>override_settings(CELERYX=...)</code> left the cached settings dataclass in place.
+  A <code>setting_changed</code> receiver now invalidates it.</li>
+<li><code>get_db_alias()</code> no longer rebuilds the settings dataclass on every database
+  access.</li>
+<li>The stand-in querysets silently ignored unsupported <code>filter()</code> lookups and
+  returned unfiltered rows. They raise <code>NotImplementedError</code> instead.</li>
+<li>Task and worker list queries are capped at 1000 rows with a warning, instead
+  of loading the whole table into memory.</li>
+<li>Workers that were killed, crashed, or died while the listener was down stayed
+  "online" forever. Celery only emits worker-offline on a graceful shutdown, so
+  liveness now falls back to heartbeat age.</li>
+<li>Worker control commands were sent without <code>reply=True</code>, so a command the
+  worker rejected (shrinking a busy pool) was reported as a success.</li>
+<li>The worker pool tab showed <code>max-concurrency</code>, which does not change on grow or
+  shrink, making both look like no-ops. It shows the live process count now.</li>
+</ul>
+<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>AUTO_MIGRATE</code> setting to control the startup migration.</li>
+<li>CI runs mypy and ty on publish, and the unfold test job is enabled again.</li>
+<li>Tests for the event listener, worker and task control, permission
+  enforcement, and dashboard escaping. Coverage 67% to 78%.</li>
+<li>API reference documents the public symbols instead of a bare module dump.</li>
+</ul>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Update dev dependencies (mypy 2.3.1, ruff 0.16.4, ty 0.0.73, pytest 9.1.1,
+  django-stubs 6.1.0, and others). prometheus-client is now a dev dependency, so
+  the metrics tests actually run.</li>
+<li>Document the permission model, the security caveats around task arguments,
+  and the unauthenticated metrics endpoint.</li>
+</ul>
 <h2 id="010a2">0.1.0a2<a class="headerlink" href="#010a2" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Production-ready audit: fix type errors, config alignment, documentation accuracy</li>
@@ -939,7 +1117,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.sections", "navigation.expand", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
