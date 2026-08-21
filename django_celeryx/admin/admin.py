@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied
 from django.urls import path
 from django.utils.translation import gettext_lazy as _
 
+from .filters import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
 from .models import Dashboard, Queue, RegisteredTask, Task, Worker
 from .queryset import (
     QueueAdminMixin,
@@ -49,6 +50,9 @@ class LiveUpdateMixin:
         live = request.GET.get("live") == "on"
         extra_context["live"] = live
         extra_context["refresh_interval"] = celeryx_settings.AUTO_REFRESH_INTERVAL
+        # Django's changelist context only carries has_add_permission, but the
+        # templates gate the control links on change permission.
+        extra_context["has_change_permission"] = self.has_change_permission(request)  # type: ignore[attr-defined]
 
         params = request.GET.copy()
         if live:
@@ -99,9 +103,12 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
         return custom_urls + urls
 
     def _apply_task_view(self, request: HttpRequest) -> HttpResponse:
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+
         from .views.apply_task import apply_task_view
 
-        return apply_task_view(request)
+        return apply_task_view(request, can_control=True)
 
     def change_view(
         self,
@@ -115,9 +122,9 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
 
         from .views.task_detail import task_detail_view
 
-        return task_detail_view(request, unquote(object_id))
+        return task_detail_view(request, unquote(object_id), can_control=self.has_change_permission(request))
 
-    @admin.action(description=_("Revoke selected tasks"))
+    @admin.action(description=_("Revoke selected tasks"), permissions=["change"])
     def revoke_selected(self, request: HttpRequest, queryset: Any) -> None:
         from django_celeryx.control.tasks import revoke_task
 
@@ -131,7 +138,7 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, _TaskBase):  # type: ignore[mis
         if count:
             messages.success(request, f"Revoked {count} task(s).")
 
-    @admin.action(description=_("Terminate selected tasks"))
+    @admin.action(description=_("Terminate selected tasks"), permissions=["change"])
     def terminate_selected(self, request: HttpRequest, queryset: Any) -> None:
         from django_celeryx.control.tasks import revoke_task
 
@@ -181,7 +188,7 @@ class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, _WorkerBase):  # type: igno
 
         from .views.worker_detail import worker_detail_view
 
-        return worker_detail_view(request, unquote(object_id))
+        return worker_detail_view(request, unquote(object_id), can_control=self.has_change_permission(request))
 
 
 @admin.register(Queue)
@@ -204,78 +211,6 @@ class RegisteredTaskAdmin(RegisteredTaskAdminMixin, _RegisteredTaskBase):  # typ
 
     def has_delete_permission(self, request: HttpRequest, obj: RegisteredTask | None = None) -> bool:
         return False
-
-
-class DashboardPeriodFilter(admin.SimpleListFilter):
-    title = _("time period")
-    parameter_name = "period"
-
-    def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
-        return [("today", str(_("Today"))), ("7d", str(_("Last 7 days"))), ("30d", str(_("Last 30 days")))]
-
-    def queryset(self, request: HttpRequest, queryset: Any) -> Any:
-        deltas = {"today": 1, "7d": 7, "30d": 30}
-        value = self.value()
-        if value is not None and value in deltas:
-            import time
-
-            cutoff = time.time() - deltas[value] * 86400
-            return queryset.filter(updated_at__gte=cutoff)
-        return queryset
-
-
-class DashboardQueueFilter(admin.SimpleListFilter):
-    title = _("queue")
-    parameter_name = "queue"
-
-    def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
-        from django_celeryx.db_models import TaskState
-        from django_celeryx.settings import get_db_alias
-
-        try:
-            return [
-                (q, q)
-                for q in sorted(
-                    TaskState.objects.using(get_db_alias())
-                    .exclude(routing_key="")
-                    .values_list("routing_key", flat=True)
-                    .distinct()
-                )
-            ]
-        except Exception:
-            return []
-
-    def queryset(self, request: HttpRequest, queryset: Any) -> Any:
-        if self.value():
-            return queryset.filter(routing_key=self.value())
-        return queryset
-
-
-class DashboardWorkerFilter(admin.SimpleListFilter):
-    title = _("worker")
-    parameter_name = "worker"
-
-    def lookups(self, request: HttpRequest, model_admin: admin.ModelAdmin) -> list[tuple[str, str]]:
-        from django_celeryx.db_models import TaskState
-        from django_celeryx.settings import get_db_alias
-
-        try:
-            return [
-                (w, w)
-                for w in sorted(
-                    TaskState.objects.using(get_db_alias())
-                    .exclude(worker="")
-                    .values_list("worker", flat=True)
-                    .distinct()
-                )
-            ]
-        except Exception:
-            return []
-
-    def queryset(self, request: HttpRequest, queryset: Any) -> Any:
-        if self.value():
-            return queryset.filter(worker=self.value())
-        return queryset
 
 
 if TYPE_CHECKING:
@@ -323,7 +258,7 @@ class DashboardAdmin(LiveUpdateMixin, _DashboardBase):
 
         qs = _TaskState.objects.using(get_db_alias()).all()
         for f_cls in self.list_filter:
-            f = f_cls(request, request.GET.copy(), _TaskState, self)  # type: ignore[operator]
+            f = f_cls(request, dict(request.GET.lists()), _TaskState, self)  # type: ignore[operator]
             qs = f.queryset(request, qs) or qs
 
         extra_context.update(compute_dashboard_context(qs, period=request.GET.get("period", "")))

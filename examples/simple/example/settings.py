@@ -61,7 +61,7 @@ CELERY_TASK_SEND_SENT_EVENT = True
 
 CELERYX = {
     "CELERY_APP": "example.celery.app",
-    # DATABASE not set — auto-creates a dedicated celeryx.sqlite3 file
+    # DATABASE not set, so a dedicated celeryx.sqlite3 file is created
 }
 
 DATABASE_ROUTERS = ["django_celeryx.db_router.CeleryXRouter"]

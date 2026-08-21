@@ -51,12 +51,12 @@ Configurable columns via `TASK_COLUMNS` setting.
 
 Worker detail view with tabbed interface (matching Flower):
 
-- **Pool** — Pool type, concurrency, processes. Controls: grow/shrink, autoscale
-- **Queues** — Active queues. Controls: add/cancel consumer
-- **Tasks** — Processed counts, active/scheduled/reserved/revoked tasks
-- **Limits** — Rate limits and timeouts
-- **Config** — Full worker Celery configuration
-- **Stats** — System resource usage, broker connection info
+- **Pool**: pool type, concurrency, processes. Controls: grow/shrink, autoscale
+- **Queues**: active queues. Controls: add/cancel consumer
+- **Tasks**: processed counts, active/scheduled/reserved/revoked tasks
+- **Limits**: rate limits and timeouts
+- **Config**: full worker Celery configuration
+- **Stats**: system resource usage, broker connection info
 
 ## Control Actions
 
@@ -74,10 +74,14 @@ Full control parity with Flower:
 CELERYX = {
     "MAX_TASK_COUNT": 100_000,
     "MAX_TASK_AGE": 86400,  # 24 hours
+    "AUTO_MIGRATE": True,  # migrate the auto-configured SQLite file on startup
     "AUTO_REFRESH_INTERVAL": 3,
     "TASK_COLUMNS": ["name", "uuid", "state", "worker", "received", "started", "runtime"],
 }
 ```
+
+See the [configuration guide](https://oliverhaas.github.io/django-celeryx/user-guide/configuration/)
+for every setting, the permission model, and the security notes.
 
 ## Unfold Theme
 

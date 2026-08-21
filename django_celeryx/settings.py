@@ -7,6 +7,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
+from django.core.signals import setting_changed
+
 logger = logging.getLogger(__name__)
 
 # Default database alias auto-configured when DATABASE is not set.
@@ -46,6 +48,10 @@ class CeleryXSettings:
     ADMIN_ENABLED: bool = True
     EVENT_LISTENER_AUTOSTART: bool = True
     ENABLE_EVENTS: bool = True
+
+    # Run the celeryx migrations on startup. Only applies to the auto-configured
+    # dedicated SQLite database; when DATABASE is set you run migrations yourself.
+    AUTO_MIGRATE: bool = True
 
     # Worker inspection
     INSPECT_TIMEOUT: float = 1.0
@@ -87,9 +93,8 @@ def get_db_alias() -> str:
     If DATABASE is not configured, auto-creates a dedicated 'celeryx' SQLite
     file database alongside the default database.
     """
-    settings = _get_settings()
-    if settings.DATABASE is not None:
-        return settings.DATABASE
+    if celeryx_settings.DATABASE is not None:
+        return str(celeryx_settings.DATABASE)
 
     from django.conf import settings as django_settings
 
@@ -148,3 +153,13 @@ class _LazySettings:
 
 
 celeryx_settings = _LazySettings()
+
+
+def _reset_cached_settings(*, setting: str, **kwargs: Any) -> None:  # noqa: ARG001
+    if setting == "CELERYX":
+        celeryx_settings.reload()
+
+
+# Without this, override_settings(CELERYX=...) leaves the cached dataclass in
+# place and callers keep reading the values loaded at first access.
+setting_changed.connect(_reset_cached_settings)

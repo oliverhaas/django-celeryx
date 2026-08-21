@@ -32,7 +32,10 @@ class TestTaskListView:
 
     def test_list_shows_tasks(self, admin_client):
         TaskState.objects.create(
-            uuid="task-visible-1", name="myapp.compute_sum", state="SUCCESS", updated_at=time.time()
+            uuid="task-visible-1",
+            name="myapp.compute_sum",
+            state="SUCCESS",
+            updated_at=time.time(),
         )
         response = admin_client.get(self._url())
         assert response.status_code == 200
@@ -331,7 +334,7 @@ class TestDashboardView:
         assert "Success Rate" in content
         assert "66.7%" in content
 
-    def test_dashboard_has_svg_charts(self, admin_client):
+    def test_dashboard_renders_chart_canvases(self, admin_client):
         now = time.time()
         TaskState.objects.create(uuid="c1", name="x.task", state="SUCCESS", updated_at=now)
         TaskState.objects.create(uuid="c2", name="x.task", state="FAILURE", updated_at=now)
@@ -339,7 +342,9 @@ class TestDashboardView:
         url = reverse("admin:django_celeryx_dashboard_changelist")
         response = admin_client.get(url)
         content = response.content.decode()
-        assert "<svg" in content
+        assert 'id="cx-throughput"' in content
+        assert 'id="cx-tasks"' in content
+        assert 'id="cx-data"' in content
 
     def test_dashboard_requires_auth(self, db):
         client = Client()

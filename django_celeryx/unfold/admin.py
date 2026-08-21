@@ -41,6 +41,9 @@ class LiveUpdateMixin:
         live = request.GET.get("live") == "on"
         extra_context["live"] = live
         extra_context["refresh_interval"] = celeryx_settings.AUTO_REFRESH_INTERVAL
+        # Django's changelist context only carries has_add_permission, but the
+        # templates gate the control links on change permission.
+        extra_context["has_change_permission"] = self.has_change_permission(request)  # type: ignore[attr-defined]
 
         params = request.GET.copy()
         if live:
@@ -91,9 +94,12 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):
         return custom_urls + urls
 
     def _apply_task_view(self, request: HttpRequest) -> HttpResponse:
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+
         from django_celeryx.admin.views.apply_task import apply_task_view
 
-        return apply_task_view(request)
+        return apply_task_view(request, can_control=True)
 
     def change_view(
         self,
@@ -107,9 +113,9 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):
 
         from django_celeryx.admin.views.task_detail import task_detail_view
 
-        return task_detail_view(request, unquote(object_id))
+        return task_detail_view(request, unquote(object_id), can_control=self.has_change_permission(request))
 
-    @admin.action(description=_("Revoke selected tasks"))
+    @admin.action(description=_("Revoke selected tasks"), permissions=["change"])
     def revoke_selected(self, request: HttpRequest, queryset: Any) -> None:
         from django_celeryx.control.tasks import revoke_task
 
@@ -123,7 +129,7 @@ class TaskAdmin(LiveUpdateMixin, TaskAdminMixin, ModelAdmin):
         if count:
             messages.success(request, f"Revoked {count} task(s).")
 
-    @admin.action(description=_("Terminate selected tasks"))
+    @admin.action(description=_("Terminate selected tasks"), permissions=["change"])
     def terminate_selected(self, request: HttpRequest, queryset: Any) -> None:
         from django_celeryx.control.tasks import revoke_task
 
@@ -173,7 +179,7 @@ class WorkerAdmin(LiveUpdateMixin, WorkerAdminMixin, ModelAdmin):
 
         from django_celeryx.admin.views.worker_detail import worker_detail_view
 
-        return worker_detail_view(request, unquote(object_id))
+        return worker_detail_view(request, unquote(object_id), can_control=self.has_change_permission(request))
 
 
 @admin.register(Queue)
@@ -206,7 +212,7 @@ class DashboardAdmin(LiveUpdateMixin, ModelAdmin):
     show_facets = admin.ShowFacets.NEVER
 
     def get_list_filter(self, request: HttpRequest) -> list:
-        from django_celeryx.admin.admin import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
+        from django_celeryx.admin.filters import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
 
         return [DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter]
 
@@ -230,14 +236,14 @@ class DashboardAdmin(LiveUpdateMixin, ModelAdmin):
         extra_context: dict[str, Any] | None = None,
     ) -> HttpResponse:
         extra_context = extra_context or {}
-        from django_celeryx.admin.admin import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
+        from django_celeryx.admin.filters import DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter
         from django_celeryx.admin.views.dashboard import compute_dashboard_context
         from django_celeryx.db_models import TaskState
         from django_celeryx.settings import get_db_alias
 
         qs = TaskState.objects.using(get_db_alias()).all()
         for f_cls in [DashboardPeriodFilter, DashboardQueueFilter, DashboardWorkerFilter]:
-            f = f_cls(request, request.GET.copy(), TaskState, self)
+            f = f_cls(request, dict(request.GET.lists()), TaskState, self)
             qs = f.queryset(request, qs) or qs
 
         extra_context.update(compute_dashboard_context(qs, period=request.GET.get("period", "")))

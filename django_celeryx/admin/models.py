@@ -35,7 +35,9 @@ class Task(models.Model):
     class Meta:
         managed = False
         app_label = "django_celeryx"
-        default_permissions = ("view",)
+        # "change" gates the control actions (revoke, terminate, send task);
+        # "view" alone is read-only monitoring.
+        default_permissions = ("view", "change")
         verbose_name = "Task"
         verbose_name_plural = "Tasks"
 
@@ -76,7 +78,9 @@ class Worker(models.Model):
     class Meta:
         managed = False
         app_label = "django_celeryx"
-        default_permissions = ("view",)
+        # "change" gates the control actions (shutdown, pool resize, limits);
+        # "view" alone is read-only monitoring.
+        default_permissions = ("view", "change")
         verbose_name = "Worker"
         verbose_name_plural = "Workers"
 

@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from django.apps import AppConfig
+
+import django_celeryx.admin
 
 
 class UnfoldCeleryAdminConfig(AppConfig):
@@ -7,6 +11,9 @@ class UnfoldCeleryAdminConfig(AppConfig):
     name = "django_celeryx.unfold"
     label = "django_celeryx"
     verbose_name = "django-celeryx"
+    # Templates live in the sibling admin package, which is never installed
+    # alongside this one (same app label).
+    path = str(Path(django_celeryx.admin.__file__).resolve().parent)
 
     def ready(self):
         from django_celeryx.admin.apps import CeleryAdminConfig

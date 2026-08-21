@@ -6,43 +6,41 @@ All settings are optional and configured via the `CELERYX` dict in your Django s
 CELERYX = {
     # Celery app (dotted path). Auto-detected if None.
     "CELERY_APP": None,
-
     # Database alias for storing task/worker state.
     # None = auto-configured dedicated SQLite file (celeryx.sqlite3).
     # Set to a DATABASES alias to use your own database (e.g. "default", "celeryx").
     "DATABASE": None,
-
     # Maximum age of stored task records in seconds (default 24h).
     "MAX_TASK_AGE": 86400,
-
     # Maximum number of task records in the database.
     # Oldest records are pruned when this limit is exceeded.
     "MAX_TASK_COUNT": 100_000,
-
     # Set to False to disable monitoring on this instance.
     # Useful in multi-pod deployments where only one pod should monitor.
     "ADMIN_ENABLED": True,
-
     # Start the event listener automatically on Django startup.
     "EVENT_LISTENER_AUTOSTART": True,
-
     # Periodically broadcast enable_events to workers.
     "ENABLE_EVENTS": True,
-
+    # Run the celeryx migrations on startup. Only applies to the auto-configured
+    # SQLite file; when DATABASE is set you run migrations yourself.
+    "AUTO_MIGRATE": True,
     # Timeout for celery.control.inspect() calls.
     "INSPECT_TIMEOUT": 1.0,
-
     # Seconds between htmx live update polls (0 to disable).
     "AUTO_REFRESH_INTERVAL": 3,
-
     # Visible columns on the task list page.
     "TASK_COLUMNS": [
-        "name", "uuid", "state", "worker", "received", "started", "runtime",
+        "name",
+        "uuid",
+        "state",
+        "worker",
+        "received",
+        "started",
+        "runtime",
     ],
-
     # Use relative timestamps (e.g. "5 minutes ago") instead of absolute.
     "NATURAL_TIME": False,
-
     # Prometheus metric name prefix. Set to "flower" for Flower drop-in compat.
     "PROMETHEUS_PREFIX": "django_celeryx",
 }
@@ -55,7 +53,7 @@ By default, django-celeryx stores all state in an auto-configured SQLite file da
 ```python
 # Option 1: Use an explicit database
 DATABASES = {
-    "default": { ... },
+    "default": {...},
     "celeryx": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "celeryx.sqlite3",
@@ -76,6 +74,10 @@ Then run migrations:
 python manage.py migrate --database=celeryx
 ```
 
+Setting `DATABASE` turns off the startup migration, so this step is on you. With
+the default auto-configured SQLite file, django-celeryx migrates on startup
+instead. Set `AUTO_MIGRATE` to `False` if you would rather run it yourself.
+
 ## Multi-Pod Deployments
 
 In production, you typically run multiple Django instances. Only one should run the event listener:
@@ -92,3 +94,32 @@ CELERYX = {
     "ADMIN_ENABLED": False,
 }
 ```
+
+## Permissions
+
+The Task and Worker models carry both a `view` and a `change` permission:
+
+| Permission | Grants |
+|---|---|
+| `django_celeryx.view_task` | Read the task list and task detail pages |
+| `django_celeryx.change_task` | Revoke, terminate, and send tasks |
+| `django_celeryx.view_worker` | Read the worker list and worker detail pages |
+| `django_celeryx.change_worker` | Pool and consumer controls, rate and time limits |
+
+Queue, RegisteredTask, and Dashboard are read-only and only have `view`.
+
+Django's admin only checks `is_staff` on custom admin views, so django-celeryx
+checks these permissions itself. A user with just the `view` permissions gets a
+monitoring-only interface: the control forms and the Send Task link are not
+rendered, and posting to those endpoints returns 403.
+
+## Security Notes
+
+Task `args`, `kwargs`, and `result` are stored as text and are searchable from
+the task list. If your tasks take credentials, tokens, or personal data as
+arguments, anyone with `view_task` can read them. Restrict the permission, or
+keep secrets out of task arguments.
+
+The Prometheus endpoint at `/celeryx/metrics/` has no authentication. It exposes
+task names, worker hostnames, and queue depths. Restrict it at the network or
+reverse-proxy layer rather than exposing it publicly.

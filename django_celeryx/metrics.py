@@ -8,14 +8,14 @@ The metric prefix is configurable via ``CELERYX["PROMETHEUS_PREFIX"]``
 
 Default metrics:
 
-- ``django_celeryx_events_total`` - Counter(worker, type, task)
-- ``django_celeryx_task_runtime_seconds`` - Histogram(worker, task)
-- ``django_celeryx_task_prefetch_time_seconds`` - Gauge(worker, task)
-- ``django_celeryx_task_prefetch_count`` - Gauge(worker, task)
-- ``django_celeryx_worker_online`` - Gauge(worker)
-- ``django_celeryx_worker_executing_tasks`` - Gauge(worker)
-- ``django_celeryx_tasks_total`` - Gauge of total tasks in the database
-- ``django_celeryx_tasks_active`` - Gauge of active (non-terminal) tasks
+- ``django_celeryx_events_total``: Counter(worker, type, task)
+- ``django_celeryx_task_runtime_seconds``: Histogram(worker, task)
+- ``django_celeryx_task_prefetch_time_seconds``: Gauge(worker, task)
+- ``django_celeryx_task_prefetch_count``: Gauge(worker, task)
+- ``django_celeryx_worker_online``: Gauge(worker)
+- ``django_celeryx_worker_executing_tasks``: Gauge(worker)
+- ``django_celeryx_tasks_total``: Gauge of total tasks in the database
+- ``django_celeryx_tasks_active``: Gauge of active (non-terminal) tasks
 """
 
 from __future__ import annotations

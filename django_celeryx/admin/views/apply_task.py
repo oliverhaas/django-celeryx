@@ -6,8 +6,11 @@ import json
 from typing import TYPE_CHECKING
 
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
+
+from django_celeryx.admin.models import Task
 
 if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
@@ -37,8 +40,15 @@ def _parse_kwargs(raw: str) -> dict | None:
     return parsed
 
 
-def apply_task_view(request: HttpRequest, task_name: str = "") -> HttpResponse:
-    """Form to send a Celery task by name with optional args/kwargs."""
+def apply_task_view(request: HttpRequest, task_name: str = "", *, can_control: bool = False) -> HttpResponse:
+    """Form to send a Celery task by name with optional args/kwargs.
+
+    Sending a task runs arbitrary registered code on a worker, so ``can_control``
+    must reflect the caller's change permission.
+    """
+    if not can_control:
+        raise PermissionDenied
+
     if request.method == "POST":
         name = request.POST.get("task_name", task_name).strip()
         if not name:
@@ -87,12 +97,7 @@ def apply_task_view(request: HttpRequest, task_name: str = "") -> HttpResponse:
             "title": "Send Task",
             "task_name": task_name,
             "registered_tasks": registered_tasks,
-            "opts": {
-                "app_label": "django_celeryx",
-                "model_name": "task",
-                "verbose_name_plural": "Tasks",
-                "app_config": type("", (), {"verbose_name": "django-celeryx"})(),
-            },
-        }
+            "opts": Task._meta,
+        },
     )
     return render(request, "admin/django_celeryx/task/apply.html", context)

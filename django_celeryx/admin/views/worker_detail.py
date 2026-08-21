@@ -6,10 +6,12 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 
 from django_celeryx.admin.helpers import get_celery_app
+from django_celeryx.admin.models import Worker
 
 if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
@@ -52,6 +54,16 @@ def _inspect_worker(hostname: str) -> dict[str, Any]:
     return result
 
 
+def _check(replies: list[dict[str, Any]], message: str) -> str:
+    """Turn a worker-reported control error into an exception."""
+    from django_celeryx.control.workers import reply_error
+
+    error = reply_error(replies)
+    if error:
+        raise RuntimeError(error)
+    return message
+
+
 def _dispatch_pool_action(request: HttpRequest, hostname: str, action: str) -> str:
     """Handle pool and worker lifecycle actions."""
     from django_celeryx.control import workers as worker_ctl
@@ -61,19 +73,16 @@ def _dispatch_pool_action(request: HttpRequest, hostname: str, action: str) -> s
         worker_ctl.shutdown_worker(hostname)
         return f"Shutdown signal sent to {hostname}."
     if action == "pool_restart":
-        worker_ctl.pool_restart(hostname)
-        return f"Pool restart signal sent to {hostname}."
+        return _check(worker_ctl.pool_restart(hostname), f"Pool restarted on {hostname}.")
     if action == "pool_grow":
         n = int(post.get("n", 1))
-        worker_ctl.pool_grow(hostname, n)
-        return f"Pool grow by {n} sent to {hostname}."
+        return _check(worker_ctl.pool_grow(hostname, n), f"Pool on {hostname} grown by {n}.")
     if action == "pool_shrink":
         n = int(post.get("n", 1))
-        worker_ctl.pool_shrink(hostname, n)
-        return f"Pool shrink by {n} sent to {hostname}."
+        return _check(worker_ctl.pool_shrink(hostname, n), f"Pool on {hostname} shrunk by {n}.")
     if action == "autoscale":
-        worker_ctl.autoscale(hostname, int(post.get("max", 0)), int(post.get("min", 0)))
-        return f"Autoscale sent to {hostname}."
+        replies = worker_ctl.autoscale(hostname, int(post.get("max", 0)), int(post.get("min", 0)))
+        return _check(replies, f"Autoscale set on {hostname}.")
     return ""
 
 
@@ -85,11 +94,9 @@ def _dispatch_queue_action(request: HttpRequest, hostname: str, action: str) -> 
     if not queue:
         return ""
     if action == "add_consumer":
-        worker_ctl.add_consumer(hostname, queue)
-        return f"Added consumer for '{queue}' on {hostname}."
+        return _check(worker_ctl.add_consumer(hostname, queue), f"Added consumer for '{queue}' on {hostname}.")
     if action == "cancel_consumer":
-        worker_ctl.cancel_consumer(hostname, queue)
-        return f"Cancelled consumer for '{queue}' on {hostname}."
+        return _check(worker_ctl.cancel_consumer(hostname, queue), f"Cancelled consumer for '{queue}' on {hostname}.")
     return ""
 
 
@@ -110,7 +117,10 @@ def _dispatch_limit_action(request: HttpRequest, hostname: str, action: str) -> 
         soft = post.get("soft", "").strip()
         hard = post.get("hard", "").strip()
         set_time_limit(
-            task_name, soft=float(soft) if soft else None, hard=float(hard) if hard else None, destination=[hostname]
+            task_name,
+            soft=float(soft) if soft else None,
+            hard=float(hard) if hard else None,
+            destination=[hostname],
         )
         return f"Time limit set for {task_name}."
     return ""
@@ -129,7 +139,7 @@ _ACTION_DISPATCHERS = {
 }
 
 
-def _handle_post(request: HttpRequest, hostname: str) -> HttpResponse | None:
+def _handle_post(request: HttpRequest, hostname: str, *, can_control: bool) -> HttpResponse | None:
     """Handle worker control action POST requests."""
     if request.method != "POST":
         return None
@@ -138,6 +148,9 @@ def _handle_post(request: HttpRequest, hostname: str) -> HttpResponse | None:
     dispatcher = _ACTION_DISPATCHERS.get(action)
     if not dispatcher:
         return None
+
+    if not can_control:
+        raise PermissionDenied
 
     tab = request.GET.get("tab", "pool")
 
@@ -151,9 +164,13 @@ def _handle_post(request: HttpRequest, hostname: str) -> HttpResponse | None:
     return HttpResponseRedirect(f"{request.path}?tab={tab}")
 
 
-def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
-    """Display worker details with tabbed navigation matching Flower."""
-    response = _handle_post(request, hostname)
+def worker_detail_view(request: HttpRequest, hostname: str, *, can_control: bool = False) -> HttpResponse:
+    """Display worker details with tabbed navigation matching Flower.
+
+    ``can_control`` must reflect the caller's change permission; it gates both
+    the control forms and the POST actions behind them.
+    """
+    response = _handle_post(request, hostname, can_control=can_control)
     if response is not None:
         return response
 
@@ -182,15 +199,12 @@ def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
             "worker": worker,
             "current_tab": tab,
             "tabs": WORKER_TABS,
-            "opts": {
-                "app_label": "django_celeryx",
-                "model_name": "worker",
-                "verbose_name_plural": "Workers",
-                "app_config": type("", (), {"verbose_name": "django-celeryx"})(),
-            },
+            "can_control": can_control,
+            "opts": Worker._meta,
             # Pool tab
             "pool_type": pool_type,
-            "pool_concurrency": pool_info.get("max-concurrency"),
+            "pool_concurrency": len(pool_info.get("processes") or []) or pool_info.get("max-concurrency"),
+            "pool_max_concurrency": pool_info.get("max-concurrency"),
             "pool_processes": pool_info.get("processes", []),
             "pool_max_tasks_per_child": pool_info.get("max-tasks-per-child"),
             "pool_timeouts": pool_info.get("timeouts"),
@@ -212,6 +226,6 @@ def worker_detail_view(request: HttpRequest, hostname: str) -> HttpResponse:
             "pid": data.get("pid"),
             "uptime": data.get("uptime"),
             "clock": data.get("clock"),
-        }
+        },
     )
     return render(request, "admin/django_celeryx/worker/change_form.html", context)
